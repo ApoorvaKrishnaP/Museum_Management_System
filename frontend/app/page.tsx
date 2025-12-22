@@ -1,20 +1,69 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { SignupForm } from './components/SignupForm';
+import { LoginForm } from './components/LoginForm';
 
 export default function Home() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
-  const [loginRole, setLoginRole] = useState('guide');
-  const [signupRole, setSignupRole] = useState('guide');
+  const [user, setUser] = useState<any>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  const handleSignupSuccess = (userData: any) => {
+    setUser(userData);
+    // Redirect based on role
+    if (userData.role === 'admin') {
+      router.push('/admin');
+    } else {
+      router.push('/guide');
+    }
+  };
+
+  const handleLoginSuccess = (userData: any) => {
+    setUser(userData);
+    // Redirect based on role
+    if (userData.role === 'admin') {
+      router.push('/admin');
+    } else {
+      router.push('/guide');
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('user');
+    setShowLogin(false);
+    setShowSignup(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 text-white">
       {/* Navigation */}
       <nav className="bg-blue-950 shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-3xl font-bold">🏛️ Grand Museum</h1>
+          {user && (
+            <div className="flex items-center gap-4">
+              <span className="text-blue-100">Welcome, {user.name}! ({user.role})</span>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 transition rounded"
+              >
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -51,132 +100,91 @@ export default function Home() {
         </div>
 
         {/* CTA Section */}
-        <div className="text-center">
-          <p className="text-lg text-blue-100 mb-8">Ready to explore? Please log in or sign up to continue.</p>
-          <div className="flex gap-6 justify-center flex-wrap">
-            <button
-              onClick={() => {
-          setShowLogin(true);
-          setShowSignup(false);
-              }}
-              className="px-8 py-4 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition text-lg cursor-pointer"
-            >
-              Login
-            </button>
-            <button
-              onClick={() => {
-          setShowSignup(true);
-          setShowLogin(false);
-              }}
-              className="px-8 py-4 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition text-lg cursor-pointer"
-            >
-              Sign Up
-            </button>
+        {!user && (
+          <div className="text-center">
+            <p className="text-lg text-blue-100 mb-8">Ready to explore? Please log in or sign up to continue.</p>
+            <div className="flex gap-6 justify-center flex-wrap">
+              <button
+                onClick={() => {
+                  setShowLogin(true);
+                  setShowSignup(false);
+                }}
+                className="px-8 py-4 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition text-lg cursor-pointer"
+              >
+                Login
+              </button>
+              <button
+                onClick={() => {
+                  setShowSignup(true);
+                  setShowLogin(false);
+                }}
+                className="px-8 py-4 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition text-lg cursor-pointer"
+              >
+                Sign Up
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Login Form */}
+        {/* User Logged In Section */}
+        {user && (
+          <div className="text-center">
+            <p className="text-lg text-blue-100 mb-8">Choose your next destination:</p>
+            <div className="flex gap-6 justify-center flex-wrap">
+              {user.role === 'guide' && (
+                <Link href="/guide">
+                  <button className="px-8 py-4 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition text-lg">
+                    Go to Guide Dashboard
+                  </button>
+                </Link>
+              )}
+              {user.role === 'admin' && (
+                <Link href="/admin">
+                  <button className="px-8 py-4 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition text-lg">
+                    Go to Admin Dashboard
+                  </button>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal Backdrop for Login */}
         {showLogin && (
-          <div className="mt-12 max-w-md mx-auto bg-blue-700 p-8 rounded-lg shadow-lg">
-            <h3 className="text-2xl font-bold mb-6">Login</h3>
-            <div className="mb-4">
-              <label className="block text-blue-100 mb-2">Role</label>
-              <select
-          value={loginRole}
-          onChange={(e) => setLoginRole(e.target.value)}
-          className="w-full px-4 py-2 rounded bg-blue-600 text-white border border-blue-500"
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="relative">
+              <button
+                onClick={() => setShowLogin(false)}
+                className="absolute top-4 right-4 text-gray-600 text-2xl hover:text-gray-800"
               >
-          <option value="guide">Guide</option>
-          <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="mb-4">
-              <label className="block text-blue-100 mb-2">Email</label>
-              <input
-          type="email"
-          placeholder="Enter your email"
-          className="w-full px-4 py-2 rounded bg-blue-600 text-white placeholder-blue-300"
+                ×
+              </button>
+              <LoginForm
+                onLoginSuccess={handleLoginSuccess}
+                onClose={() => setShowLogin(false)}
               />
             </div>
-            <div className="mb-6">
-              <label className="block text-blue-100 mb-2">Password</label>
-              <input
-          type="password"
-          placeholder="Enter your password"
-          className="w-full px-4 py-2 rounded bg-blue-600 text-white placeholder-blue-300"
-              />
-            </div>
-            {loginRole === 'guide' ? (
-              <Link href="/guide">
-          <button className="w-full px-4 py-2 bg-green-500 text-white font-bold rounded hover:bg-green-600 transition">
-            Login as Guide
-          </button>
-              </Link>
-            ) : (
-              <Link href="/admin">
-          <button className="w-full px-4 py-2 bg-green-500 text-white font-bold rounded hover:bg-green-600 transition">
-            Login as Admin
-          </button>
-              </Link>
-            )}
           </div>
         )}
 
-        {/* Sign Up Form */}
+        {/* Modal Backdrop for Signup */}
         {showSignup && (
-          <div className="mt-12 max-w-md mx-auto bg-blue-700 p-8 rounded-lg shadow-lg">
-            <h3 className="text-2xl font-bold mb-6">Sign Up</h3>
-            <div className="mb-4">
-              <label className="block text-blue-100 mb-2">Role</label>
-              <select
-          value={signupRole}
-          onChange={(e) => setSignupRole(e.target.value)}
-          className="w-full px-4 py-2 rounded bg-blue-600 text-white border border-blue-500"
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="relative">
+              <button
+                onClick={() => setShowSignup(false)}
+                className="absolute top-4 right-4 text-gray-600 text-2xl hover:text-gray-800"
               >
-          <option value="guide">Guide</option>
-          <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="mb-4">
-              <label className="block text-blue-100 mb-2">Full Name</label>
-              <input
-          type="text"
-          placeholder="Enter your full name"
-          className="w-full px-4 py-2 rounded bg-blue-600 text-white placeholder-blue-300"
+                ×
+              </button>
+              <SignupForm
+                onSignupSuccess={handleSignupSuccess}
+                onClose={() => setShowSignup(false)}
               />
             </div>
-            <div className="mb-4">
-              <label className="block text-blue-100 mb-2">Email</label>
-              <input
-          type="email"
-          placeholder="Enter your email"
-          className="w-full px-4 py-2 rounded bg-blue-600 text-white placeholder-blue-300"
-              />
-            </div>
-            <div className="mb-6">
-              <label className="block text-blue-100 mb-2">Password</label>
-              <input
-          type="password"
-          placeholder="Enter your password"
-          className="w-full px-4 py-2 rounded bg-blue-600 text-white placeholder-blue-300"
-              />
-            </div>
-            {signupRole === 'guide' ? (
-              <Link href="/guide">
-          <button className="w-full px-4 py-2 bg-purple-600 text-white font-bold rounded hover:bg-purple-700 transition">
-            Sign Up as Guide
-          </button>
-              </Link>
-            ) : (
-              <Link href="/admin">
-          <button className="w-full px-4 py-2 bg-purple-600 text-white font-bold rounded hover:bg-purple-700 transition">
-            Sign Up as Admin
-          </button>
-              </Link>
-            )}
           </div>
         )}
-            </main>
-          </div>
-        );
-      }
+      </main>
+    </div>
+  );
+}

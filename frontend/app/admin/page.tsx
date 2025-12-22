@@ -1,9 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function AdminPage() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
   const [formData, setFormData] = useState({
     name: '',
     age: '',
@@ -11,6 +16,29 @@ export default function AdminPage() {
     visitDate: '',
     category: 'student',
   });
+
+  useEffect(() => {
+    // Check if user is logged in and is an admin
+    const savedUser = localStorage.getItem('user');
+    if (!savedUser) {
+      router.push('/');
+      return;
+    }
+    
+    const userData = JSON.parse(savedUser);
+    if (userData.role !== 'admin') {
+      router.push('/');
+      return;
+    }
+    
+    setUser(userData);
+    setLoading(false);
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    router.push('/');
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -33,17 +61,25 @@ export default function AdminPage() {
     });
   };
 
+  if (loading) {
+    return <div className="text-center p-8">Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-900 to-purple-800 text-white">
       {/* Navigation */}
       <nav className="bg-purple-950 shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-3xl font-bold">⚙️ Admin Dashboard</h1>
-          <Link href="/">
-            <button className="px-4 py-2 bg-red-500 hover:bg-red-600 transition rounded">
+          <div className="flex items-center gap-4">
+            {user && <span className="text-purple-100">Welcome, {user.name}!</span>}
+            <button 
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-500 hover:bg-red-600 transition rounded"
+            >
               Logout
             </button>
-          </Link>
+          </div>
         </div>
       </nav>
 
