@@ -16,13 +16,13 @@ export default function GuidePage() {
       router.push('/');
       return;
     }
-    
+
     const userData = JSON.parse(savedUser);
     if (userData.role !== 'guide') {
       router.push('/');
       return;
     }
-    
+
     setUser(userData);
     setLoading(false);
   }, [router]);
@@ -44,7 +44,7 @@ export default function GuidePage() {
           <h1 className="text-3xl font-bold">👨‍🏫 Guide Dashboard</h1>
           <div className="flex items-center gap-4">
             {user && <span className="text-green-100">Welcome, {user.name}!</span>}
-            <button 
+            <button
               onClick={handleLogout}
               className="px-4 py-2 bg-red-500 hover:bg-red-600 transition rounded"
             >
@@ -96,9 +96,11 @@ export default function GuidePage() {
             <p className="text-green-100 mb-6">
               View the museum layout and navigate through different galleries and exhibition areas.
             </p>
-            <button className="w-full px-4 py-3 bg-blue-500 text-white font-bold rounded hover:bg-blue-600 transition">
-              View Floor Plan
-            </button>
+            <Link href="/guide/map">
+              <button className="w-full px-4 py-3 bg-blue-500 text-white font-bold rounded hover:bg-blue-600 transition">
+                View Floor Plan
+              </button>
+            </Link>
           </div>
 
           {/* Gallery Overview */}
