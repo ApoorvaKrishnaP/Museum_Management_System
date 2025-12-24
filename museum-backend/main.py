@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import get_conn
 from auth_routes import router as auth_router
+from visitor_routes import router as visitor_router
 
 app = FastAPI(title="Museum Analytics API")
 
@@ -16,6 +17,7 @@ app.add_middleware(
 
 # Include authentication routes
 app.include_router(auth_router)
+app.include_router(visitor_router)
 
 @app.get("/")
 def read_root():
