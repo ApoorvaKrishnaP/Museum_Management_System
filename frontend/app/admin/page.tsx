@@ -27,6 +27,27 @@ export default function AdminPage() {
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+
+
+  const [activeTab, setActiveTab] = useState<'visitor' | 'staff' | 'finance'>('visitor');
+
+  // Staff State
+  const [staffData, setStaffData] = useState({
+    name: '', occupation: 'Tour_guide', contact: '', joining_date: '', email: ''
+  });
+  const [staffErrors, setStaffErrors] = useState<{ [key: string]: string }>({});
+
+  // Finance State
+  const [financeData, setFinanceData] = useState({
+    visitor_id: '',
+    ticket_type: 'Standard',
+    amount: '',
+    payment_method: 'Card',
+    discount_applied: false,
+    counter_id: 'C1'
+  });
+  const [financeErrors, setFinanceErrors] = useState<{ [key: string]: string }>({});
+
   useEffect(() => {
     // Check if user is logged in and is an admin
     const savedUser = localStorage.getItem('user');
@@ -105,6 +126,115 @@ export default function AdminPage() {
 
   // calculateAgeGroup function removed as per request
 
+  // --- STAFF HANDLERS ---
+  const handleStaffChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setStaffData((prev) => ({ ...prev, [name]: value }));
+    if (staffErrors[name]) setStaffErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  const validateStaffForm = () => {
+    const newErrors: { [key: string]: string } = {};
+    if (staffData.name.trim().length < 2) newErrors.name = "Name must be at least 2 characters.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(staffData.email)) newErrors.email = "Invalid email format.";
+    if (!/^\+?[0-9]{10,15}$/.test(staffData.contact)) newErrors.contact = "Invalid contact number (10-15 digits).";
+    if (staffData.joining_date) {
+      const selectedDate = new Date(staffData.joining_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate > today) newErrors.joining_date = "Joining Date cannot be in the future.";
+    } else {
+      newErrors.joining_date = "Joining Date is required.";
+    }
+    setStaffErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateStaffForm()) return;
+
+    try {
+      const payload = {
+        ...staffData,
+        name: staffData.name.trim(),
+        email: staffData.email.toLowerCase(),
+      };
+
+      const res = await fetch('http://localhost:8000/api/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        alert('Staff registered successfully!');
+        setStaffData({ name: '', occupation: 'Tour_guide', contact: '', joining_date: '', email: '' });
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.detail}`);
+      }
+    } catch (error) {
+      console.error("Failed", error);
+      alert("Failed to connect to server.");
+    }
+  };
+
+  // --- FINANCE HANDLERS ---
+  const handleFinanceChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    setFinanceData(prev => ({ ...prev, [name]: val }));
+    if (financeErrors[name]) setFinanceErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  const validateFinanceForm = () => {
+    const newErrors: { [key: string]: string } = {};
+    if (!financeData.visitor_id || isNaN(Number(financeData.visitor_id))) newErrors.visitor_id = "Valid Visitor ID required.";
+    if (!financeData.amount || Number(financeData.amount) <= 0) newErrors.amount = "Amount must be positive.";
+    if (!financeData.counter_id.startsWith('C')) newErrors.counter_id = "Counter ID must start with 'C'.";
+
+    setFinanceErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleFinanceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateFinanceForm()) return;
+
+    try {
+      const payload = {
+        ...financeData,
+        visitor_id: Number(financeData.visitor_id),
+        amount: Number(financeData.amount)
+      };
+
+      const res = await fetch('http://localhost:8000/api/finance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        alert('Transaction recorded successfully!');
+        setFinanceData({
+          visitor_id: '',
+          ticket_type: 'Standard',
+          amount: '',
+          payment_method: 'Card',
+          discount_applied: false,
+          counter_id: 'C1'
+        });
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.detail}`);
+      }
+    } catch (error) {
+      console.error("Failed", error);
+      alert("Failed to connect to server.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -174,148 +304,199 @@ export default function AdminPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-          {/* Visitor Form (Left Column, Span 4) */}
+          {/* Registration Form Panel (Left Column, Span 4) */}
           <div className="lg:col-span-4 bg-purple-900/50 backdrop-blur-sm p-8 rounded-xl shadow-2xl border border-purple-700/50">
-            <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
-              <span>📝</span> Register Visitor
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-5">
 
-              {/* Name */}
-              <div>
-                <label className="block text-purple-200 text-sm font-semibold mb-1">Full Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="John Doe"
-                  className={`w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white placeholder-purple-400 border ${errors.name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400 transition`}
-                  required
-                />
-                {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
-              </div>
-
-              {/* Age & Mobile */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-purple-200 text-sm font-semibold mb-1">Age</label>
-                  <input
-                    type="number"
-                    name="age"
-                    value={formData.age}
-                    onChange={handleInputChange}
-                    placeholder="25"
-                    className={`w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white border ${errors.age ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400 transition`}
-                    required
-                  />
-                  {errors.age && <p className="text-red-400 text-xs mt-1">{errors.age}</p>}
-                </div>
-                <div>
-                  <label className="block text-purple-200 text-sm font-semibold mb-1">Contact</label>
-                  <input
-                    type="tel"
-                    name="contact"
-                    value={formData.contact}
-                    onChange={handleInputChange}
-                    placeholder="+91..."
-                    className={`w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white border ${errors.contact ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400 transition`}
-                    required
-                  />
-                  {errors.contact && <p className="text-red-400 text-xs mt-1">{errors.contact}</p>}
-                </div>
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-purple-200 text-sm font-semibold mb-1">Email Address</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="john@example.com"
-                  className={`w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white border ${errors.email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400 transition`}
-                  required
-                />
-                {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
-              </div>
-
-              {/* Dropdowns Row 1 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-purple-200 text-sm font-semibold mb-1">Nationality</label>
-                  <select
-                    name="nationality"
-                    value={formData.nationality}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
-                  >
-                    {COUNTRIES.map(c => <option key={c} value={c} className="bg-purple-900">{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-purple-200 text-sm font-semibold mb-1">Language</label>
-                  <select
-                    name="preferred_language"
-                    value={formData.preferred_language}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
-                  >
-                    {LANGUAGES.map(l => <option key={l} value={l} className="bg-purple-900">{l}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Dropdowns Row 2 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-purple-200 text-sm font-semibold mb-1">Ticket Type</label>
-                  <select
-                    name="ticket_type"
-                    value={formData.ticket_type}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
-                  >
-                    {TICKET_TYPES.map(t => <option key={t} value={t} className="bg-purple-900">{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-purple-200 text-sm font-semibold mb-1">Last Visit</label>
-                  <input
-                    type="date"
-                    name="last_visit_date"
-                    value={formData.last_visit_date}
-                    onChange={handleInputChange}
-                    max={new Date().toISOString().split("T")[0]}
-                    className={`w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white border ${errors.last_visit_date ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400 transition`}
-                  />
-                  {errors.last_visit_date && <p className="text-red-400 text-xs mt-1">{errors.last_visit_date}</p>}
-                </div>
-              </div>
-
-              {/* ID Proof - Dropdown Only */}
-              <div>
-                <label className="block text-purple-200 text-sm font-semibold mb-1">ID Proof (Verified)</label>
-                <select
-                  name="id_proof"
-                  value={formData.id_proof}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 rounded-lg bg-purple-800/50 text-white border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
-                >
-                  <option value="Voter ID" className="bg-purple-900">Voter ID</option>
-                  <option value="PAN" className="bg-purple-900">PAN</option>
-                  <option value="Aadhar" className="bg-purple-900">Aadhar</option>
-                </select>
-              </div>
-
+            {/* Tabs */}
+            <div className="flex bg-purple-800/50 rounded-lg p-1 mb-6">
               <button
-                type="submit"
-                className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-lg shadow-lg transform active:scale-95 transition-all"
+                onClick={() => setActiveTab('visitor')}
+                className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${activeTab === 'visitor' ? 'bg-purple-600 text-white shadow' : 'text-purple-300 hover:text-white'}`}
               >
-                Register Visitor
+                Visitor
               </button>
-            </form>
+              <button
+                onClick={() => setActiveTab('staff')}
+                className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${activeTab === 'staff' ? 'bg-purple-600 text-white shadow' : 'text-purple-300 hover:text-white'}`}
+              >
+                Staff
+              </button>
+              <button
+                onClick={() => setActiveTab('finance')}
+                className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${activeTab === 'finance' ? 'bg-purple-600 text-white shadow' : 'text-purple-300 hover:text-white'}`}
+              >
+                Finance
+              </button>
+            </div>
+
+            <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+              <span>
+                {activeTab === 'visitor' ? '📝 Register Visitor' :
+                  activeTab === 'staff' ? '👔 Register Staff' :
+                    '💰 Record Transaction'}
+              </span>
+            </h3>
+
+            {/* VISITOR FORM */}
+            {activeTab === 'visitor' ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Name */}
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Full Name</label>
+                  <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="John Doe" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Age</label>
+                    <input type="number" name="age" value={formData.age} onChange={handleInputChange} placeholder="25" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.age ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {errors.age && <p className="text-red-400 text-xs mt-1">{errors.age}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Contact</label>
+                    <input type="tel" name="contact" value={formData.contact} onChange={handleInputChange} placeholder="+91..." className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.contact ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {errors.contact && <p className="text-red-400 text-xs mt-1">{errors.contact}</p>}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Email</label>
+                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="john@example.com" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Nationality</label>
+                    <select name="nationality" value={formData.nationality} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {COUNTRIES.map(c => <option key={c} value={c} className="bg-purple-900">{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Language</label>
+                    <select name="preferred_language" value={formData.preferred_language} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {LANGUAGES.map(l => <option key={l} value={l} className="bg-purple-900">{l}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Ticket</label>
+                    <select name="ticket_type" value={formData.ticket_type} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {TICKET_TYPES.map(t => <option key={t} value={t} className="bg-purple-900">{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Last Visit</label>
+                    <input type="date" name="last_visit_date" value={formData.last_visit_date} onChange={handleInputChange} max={new Date().toISOString().split("T")[0]} className={`w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400`} />
+                    {errors.last_visit_date && <p className="text-red-400 text-xs mt-1">{errors.last_visit_date}</p>}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">ID Proof</label>
+                  <select name="id_proof" value={formData.id_proof} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                    <option value="Voter ID" className="bg-purple-900">Voter ID</option>
+                    <option value="PAN" className="bg-purple-900">PAN</option>
+                    <option value="Aadhar" className="bg-purple-900">Aadhar</option>
+                  </select>
+                </div>
+
+                <button type="submit" className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-2">
+                  Register Visitor
+                </button>
+              </form>
+            ) : activeTab === 'staff' ? (
+              <form onSubmit={handleStaffSubmit} className="space-y-4">
+                {/* STAFF FORM */}
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Staff Name</label>
+                  <input type="text" name="name" value={staffData.name} onChange={handleStaffChange} placeholder="Jane Doe" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  {staffErrors.name && <p className="text-red-400 text-xs mt-1">{staffErrors.name}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Occupation</label>
+                  <select name="occupation" value={staffData.occupation} onChange={handleStaffChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                    {['Customer_care', 'Tour_guide', 'Security', 'Admin', 'Manager', 'Custodian'].map(role => (
+                      <option key={role} value={role} className="bg-purple-900">{role.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Contact</label>
+                  <input type="tel" name="contact" value={staffData.contact} onChange={handleStaffChange} placeholder="9876543210" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.contact ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  {staffErrors.contact && <p className="text-red-400 text-xs mt-1">{staffErrors.contact}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Email</label>
+                  <input type="email" name="email" value={staffData.email} onChange={handleStaffChange} placeholder="jane@museum.com" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  {staffErrors.email && <p className="text-red-400 text-xs mt-1">{staffErrors.email}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Joining Date</label>
+                  <input type="date" name="joining_date" value={staffData.joining_date} onChange={handleStaffChange} max={new Date().toISOString().split("T")[0]} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.joining_date ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  {staffErrors.joining_date && <p className="text-red-400 text-xs mt-1">{staffErrors.joining_date}</p>}
+                </div>
+
+                <button type="submit" className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
+                  Register Staff
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleFinanceSubmit} className="space-y-4">
+                {/* FINANCE FORM */}
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Visitor ID</label>
+                  <input type="number" name="visitor_id" value={financeData.visitor_id} onChange={handleFinanceChange} placeholder="1001" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${financeErrors.visitor_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  {financeErrors.visitor_id && <p className="text-red-400 text-xs mt-1">{financeErrors.visitor_id}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Ticket Type</label>
+                    <select name="ticket_type" value={financeData.ticket_type} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {TICKET_TYPES.map(t => <option key={t} value={t} className="bg-purple-900">{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Amount (₹)</label>
+                    <input type="number" name="amount" value={financeData.amount} onChange={handleFinanceChange} placeholder="500" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${financeErrors.amount ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {financeErrors.amount && <p className="text-red-400 text-xs mt-1">{financeErrors.amount}</p>}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Method</label>
+                    <select name="payment_method" value={financeData.payment_method} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {['Card', 'UPI', 'Cash', 'Online'].map(m => <option key={m} value={m} className="bg-purple-900">{m}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Counter</label>
+                    <select name="counter_id" value={financeData.counter_id} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {['C1', 'C2', 'C3', 'C4'].map(c => <option key={c} value={c} className="bg-purple-900">{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-2">
+                  <input type="checkbox" id="discount" name="discount_applied" checked={financeData.discount_applied} onChange={handleFinanceChange} className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500" />
+                  <label htmlFor="discount" className="text-purple-200 text-sm font-semibold">Apply Discount?</label>
+                </div>
+
+                <button type="submit" className="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
+                  Record Transaction
+                </button>
+              </form>
+            )}
+
           </div>
 
           {/* Right Side - Analytics (Span 8) */}

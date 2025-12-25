@@ -22,7 +22,6 @@ class VisitorCreate(BaseModel):
     # We will derive these or set defaults, but for the form we might not ask for last_visit_date if it's new
     # However, the user request says "Last Visit Date" in the form.
     last_visit_date: Optional[date] = None
-    duration_of_stay: Optional[str] = "02:00:00" # Default 2 hours if not specified
 
     @validator('name')
     def name_must_be_trimmed(cls, v):
@@ -60,9 +59,9 @@ def create_visitor(visitor: VisitorCreate):
         cur.execute("""
             INSERT INTO visitor (
                 visitor_id, name, age_group, email, nationality, preferred_language, 
-                last_visit_date, duration_of_stay, ticket_type, id_proof, contact
+                last_visit_date, ticket_type, id_proof, contact
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             ) RETURNING visitor_id;
         """, (
             random_id,
@@ -72,7 +71,6 @@ def create_visitor(visitor: VisitorCreate):
             visitor.nationality, 
             visitor.preferred_language,
             visitor.last_visit_date,
-            visitor.duration_of_stay,
             visitor.ticket_type,
             visitor.id_proof,
             visitor.contact
