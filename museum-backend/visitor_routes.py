@@ -85,4 +85,62 @@ def create_visitor(visitor: VisitorCreate):
         cur.close()
         conn.close()
 
-    return {"message": "Visitor registered successfully", "visitor_id": new_id}
+@router.get("/api/visitors", status_code=200)
+def get_visitors(
+    name: Optional[str] = None,
+    nationality: Optional[str] = None
+):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        query = "SELECT * FROM visitor"
+        conditions = []
+        params = []
+        
+        if name:
+            conditions.append("name ILIKE %s")
+            params.append(f"%{name}%")
+        if nationality:
+            conditions.append("nationality = %s")
+            params.append(nationality)
+            
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+            
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+        return rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+@router.put("/api/visitors/{visitor_id}", status_code=200)
+def update_visitor(visitor_id: int, visitor: VisitorCreate):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Check if exists
+        cur.execute("SELECT visitor_id FROM visitor WHERE visitor_id = %s", (visitor_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Visitor not found")
+
+        cur.execute("""
+            UPDATE visitor 
+            SET name=%s, age_group=%s, email=%s, nationality=%s, preferred_language=%s, 
+                last_visit_date=%s, ticket_type=%s, id_proof=%s, contact=%s
+            WHERE visitor_id=%s
+        """, (
+            visitor.name, visitor.age_group, visitor.email.lower(), visitor.nationality, 
+            visitor.preferred_language, visitor.last_visit_date, visitor.ticket_type, 
+            visitor.id_proof, visitor.contact, visitor_id
+        ))
+        conn.commit()
+        return {"message": "Visitor updated successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()

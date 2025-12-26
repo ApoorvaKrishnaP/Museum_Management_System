@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, validator
 from datetime import date, datetime, time
+from typing import Optional
 from database import get_conn
 import random
 
@@ -81,6 +82,67 @@ def create_transaction(finance: FinanceCreate):
         conn.rollback()
         if "foreign key constraint" in str(e).lower():
              raise HTTPException(status_code=400, detail="Invalid Visitor ID.")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+@router.get("/api/finance", status_code=200)
+def get_finance(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    payment_method: Optional[str] = None
+):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        query = "SELECT * FROM revenue_finance"
+        conditions = []
+        params = []
+        
+        if start_date:
+            conditions.append("transaction_date >= %s")
+            params.append(start_date)
+        if end_date:
+            conditions.append("transaction_date <= %s")
+            params.append(end_date)
+        if payment_method:
+            conditions.append("payment_method = %s")
+            params.append(payment_method)
+            
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += " ORDER BY transaction_date DESC, transaction_time DESC"
+            
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+        return rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+@router.put("/api/finance/{transaction_id}", status_code=200)
+def update_transaction(transaction_id: int, finance: FinanceCreate):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT transaction_id FROM revenue_finance WHERE transaction_id = %s", (transaction_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Transaction not found")
+
+        cur.execute("""
+            UPDATE revenue_finance 
+            SET ticket_type=%s, amount=%s, payment_method=%s, 
+                discount_applied=%s, counter_id=%s
+            WHERE transaction_id=%s
+        """, (
+            finance.ticket_type, finance.amount, finance.payment_method, 
+            finance.discount_applied, finance.counter_id, transaction_id
+        ))
+        conn.commit()
+        return {"message": "Transaction updated successfully"}
+    except Exception as e:
+        conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()

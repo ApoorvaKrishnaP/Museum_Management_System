@@ -53,6 +53,19 @@ export default function AdminPage() {
   const [gallerySearch, setGallerySearch] = useState({ name: '' });
   const [artifactSearch, setArtifactSearch] = useState({ type: 'Gallery', value: '' });
 
+  // New Search States
+  const [visitorSearch, setVisitorSearch] = useState({ name: '', nationality: '' });
+  const [staffSearch, setStaffSearch] = useState({ type: 'Role', role: 'Tour_guide', name: '' });
+  const [financeSearch, setFinanceSearch] = useState({ startDate: '', endDate: '', paymentMethod: '' });
+
+  // New Data Lists
+  const [visitors, setVisitors] = useState<any[]>([]);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [finances, setFinances] = useState<any[]>([]);
+  const [editingVisitorId, setEditingVisitorId] = useState<number | null>(null);
+  const [editingStaffId, setEditingStaffId] = useState<number | null>(null);
+  const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
+
   // --- SEARCH HANDLERS ---
   const searchTours = () => {
     let url = 'http://localhost:8000/api/tours?';
@@ -70,9 +83,13 @@ export default function AdminPage() {
   const [tours, setTours] = useState<any[]>([]);
 
   const searchGalleries = () => {
-    fetch(`http://localhost:8000/api/galleries?name=${gallerySearch.name}`)
+    const term = encodeURIComponent(gallerySearch.name.trim());
+    fetch(`http://localhost:8000/api/galleries?name=${term}`)
       .then(res => res.json())
-      .then(setGalleries)
+      .then(data => {
+        if (Array.isArray(data)) setGalleries(data);
+        else console.error("Invalid gallery data", data);
+      })
       .catch(e => console.error(e));
   };
 
@@ -86,6 +103,31 @@ export default function AdminPage() {
       .then(res => res.json())
       .then(setArtifacts)
       .catch(e => console.error(e));
+  };
+
+  const searchVisitors = () => {
+    let url = 'http://localhost:8000/api/visitors?';
+    if (visitorSearch.name) url += `name=${visitorSearch.name}&`;
+    if (visitorSearch.nationality) url += `nationality=${visitorSearch.nationality}`;
+
+    fetch(url).then(res => res.json()).then(setVisitors).catch(console.error);
+  };
+
+  const searchStaff = () => {
+    let url = 'http://localhost:8000/api/staff?';
+    if (staffSearch.type === 'Role' && staffSearch.role) url += `role=${staffSearch.role}`;
+    else if (staffSearch.type === 'Name' && staffSearch.name) url += `name=${staffSearch.name}`;
+
+    fetch(url).then(res => res.json()).then(setStaffList).catch(console.error);
+  };
+
+  const searchFinance = () => {
+    let url = 'http://localhost:8000/api/finance?';
+    if (financeSearch.startDate) url += `start_date=${financeSearch.startDate}&`;
+    if (financeSearch.endDate) url += `end_date=${financeSearch.endDate}&`;
+    if (financeSearch.paymentMethod) url += `payment_method=${financeSearch.paymentMethod}`;
+
+    fetch(url).then(res => res.json()).then(setFinances).catch(console.error);
   };
 
   // Staff State
@@ -280,15 +322,20 @@ export default function AdminPage() {
         email: staffData.email.toLowerCase(),
       };
 
-      const res = await fetch('http://localhost:8000/api/staff', {
-        method: 'POST',
+      const url = editingStaffId ? `http://localhost:8000/api/staff/${editingStaffId}` : 'http://localhost:8000/api/staff';
+      const method = editingStaffId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       if (res.ok) {
-        alert('Staff registered successfully!');
+        alert(editingStaffId ? 'Staff updated successfully!' : 'Staff registered successfully!');
         setStaffData({ name: '', occupation: 'Tour_guide', contact: '', joining_date: '', email: '' });
+        setEditingStaffId(null);
+        searchStaff();
       } else {
         const err = await res.json();
         alert(`Error: ${err.detail}`);
@@ -297,6 +344,21 @@ export default function AdminPage() {
       console.error("Failed", error);
       alert("Failed to connect to server.");
     }
+  };
+
+  const handleDeleteStaff = async (id: number) => {
+    if (!confirm("Delete staff member?")) return;
+    await fetch(`http://localhost:8000/api/staff/${id}`, { method: 'DELETE' });
+    searchStaff();
+  };
+
+  const startEditStaff = (s: any) => {
+    setStaffData({
+      name: s.name, occupation: s.occupation, contact: s.contact,
+      joining_date: s.joining_date, email: s.email
+    });
+    setEditingStaffId(s.staff_id);
+    setActiveTab('staff');
   };
 
   // --- FINANCE HANDLERS ---
@@ -328,22 +390,23 @@ export default function AdminPage() {
         amount: Number(financeData.amount)
       };
 
-      const res = await fetch('http://localhost:8000/api/finance', {
-        method: 'POST',
+      const url = editingTransactionId ? `http://localhost:8000/api/finance/${editingTransactionId}` : 'http://localhost:8000/api/finance';
+      const method = editingTransactionId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       if (res.ok) {
-        alert('Transaction recorded successfully!');
+        alert(editingTransactionId ? 'Transaction updated!' : 'Transaction recorded successfully!');
         setFinanceData({
-          visitor_id: '',
-          ticket_type: 'Standard',
-          amount: '',
-          payment_method: 'Card',
-          discount_applied: false,
-          counter_id: 'C1'
+          visitor_id: '', ticket_type: 'Standard', amount: '',
+          payment_method: 'Card', discount_applied: false, counter_id: 'C1'
         });
+        setEditingTransactionId(null);
+        searchFinance();
       } else {
         const err = await res.json();
         alert(`Error: ${err.detail}`);
@@ -352,6 +415,15 @@ export default function AdminPage() {
       console.error("Failed", error);
       alert("Failed to connect to server.");
     }
+  };
+
+  const startEditFinance = (f: any) => {
+    setFinanceData({
+      visitor_id: String(f.visitor_id), ticket_type: f.ticket_type, amount: String(f.amount),
+      payment_method: f.payment_method, discount_applied: f.discount_applied, counter_id: f.counter_id
+    });
+    setEditingTransactionId(f.transaction_id);
+    setActiveTab('finance');
   };
 
   // --- TOUR HANDLERS ---
@@ -552,27 +624,44 @@ export default function AdminPage() {
         last_visit_date: formData.last_visit_date || null
       };
 
-      const res = await fetch('http://localhost:8000/api/visitors', {
-        method: 'POST',
+      const url = editingVisitorId ? `http://localhost:8000/api/visitors/${editingVisitorId}` : 'http://localhost:8000/api/visitors';
+      const method = editingVisitorId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       if (res.ok) {
-        alert('Visitor details saved successfully!');
+        alert(editingVisitorId ? 'Visitor details updated!' : 'Visitor registered successfully!');
         setFormData({
           name: '', age: '', email: '', nationality: 'India', preferred_language: 'English',
           last_visit_date: '', ticket_type: 'Standard', id_proof: 'Voter ID', contact: ''
         });
+        setEditingVisitorId(null);
+        searchVisitors(); // Refresh list if search was active
       } else {
         const err = await res.json();
         alert(`Error: ${err.detail}`);
       }
     } catch (error) {
-      console.error("Failed to submit", error);
+      console.error("Failed", error);
       alert("Failed to connect to server.");
     }
   };
+
+  const startEditVisitor = (v: any) => {
+    setFormData({
+      name: v.name, age: v.age_group, email: v.email, nationality: v.nationality,
+      preferred_language: v.preferred_language, last_visit_date: v.last_visit_date || '',
+      ticket_type: v.ticket_type, id_proof: v.id_proof, contact: v.contact
+    });
+    setEditingVisitorId(v.visitor_id);
+    setActiveTab('visitor');
+  };
+
+
 
   if (loading) {
     return <div className="text-center p-8 text-white">Loading...</div>;
@@ -659,162 +748,328 @@ export default function AdminPage() {
 
             {/* VISITOR FORM */}
             {activeTab === 'visitor' ? (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Name */}
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Full Name</label>
-                  <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="John Doe" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+              <>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Name */}
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Full Name</label>
+                    <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="John Doe" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Age</label>
+                      <input type="number" name="age" value={formData.age} onChange={handleInputChange} placeholder="25" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.age ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                      {errors.age && <p className="text-red-400 text-xs mt-1">{errors.age}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Contact</label>
+                      <input type="tel" name="contact" value={formData.contact} onChange={handleInputChange} placeholder="+91..." className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.contact ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                      {errors.contact && <p className="text-red-400 text-xs mt-1">{errors.contact}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Email</label>
+                    <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="john@example.com" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Nationality</label>
+                      <select name="nationality" value={formData.nationality} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        {COUNTRIES.map(c => <option key={c} value={c} className="bg-purple-900">{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Language</label>
+                      <select name="preferred_language" value={formData.preferred_language} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        {LANGUAGES.map(l => <option key={l} value={l} className="bg-purple-900">{l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Ticket</label>
+                      <select name="ticket_type" value={formData.ticket_type} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        {TICKET_TYPES.map(t => <option key={t} value={t} className="bg-purple-900">{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Last Visit</label>
+                      <input type="date" name="last_visit_date" value={formData.last_visit_date} onChange={handleInputChange} max={new Date().toISOString().split("T")[0]} className={`w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400`} />
+                      {errors.last_visit_date && <p className="text-red-400 text-xs mt-1">{errors.last_visit_date}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">ID Proof</label>
+                    <select name="id_proof" value={formData.id_proof} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      <option value="Voter ID" className="bg-purple-900">Voter ID</option>
+                      <option value="PAN" className="bg-purple-900">PAN</option>
+                      <option value="Aadhar" className="bg-purple-900">Aadhar</option>
+                    </select>
+                  </div>
+
+                  <button type="submit" className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-2">
+                    Register Visitor
+                  </button>
+                </form>
+                {/* VISITOR SEARCH & LIST */}
+                <div className="mt-8 pt-6 border-t border-purple-700">
+                  <h4 className="text-xl font-bold mb-4 text-purple-200">Search Visitors</h4>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      value={visitorSearch.name}
+                      onChange={(e) => setVisitorSearch({ ...visitorSearch, name: e.target.value })}
+                      placeholder="Search by Name..."
+                      className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600 text-white placeholder-purple-400"
+                    />
+
+                    <select
+                      value={visitorSearch.nationality}
+                      onChange={(e) => setVisitorSearch({ ...visitorSearch, nationality: e.target.value })}
+                      className="bg-purple-800/50 text-white rounded px-3 py-2 border border-purple-600"
+                    >
+                      <option value="">All Nationalities</option>
+                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+
+                    <button onClick={searchVisitors} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-purple-100">
+                      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
+                        <tr>
+                          <th className="px-4 py-2">ID</th>
+                          <th className="px-4 py-2">Name</th>
+                          <th className="px-4 py-2">Contact</th>
+                          <th className="px-4 py-2">Ticket</th>
+                          <th className="px-4 py-2">Last Visit</th>
+                          <th className="px-4 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visitors.map(v => (
+                          <tr key={v.visitor_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+                            <td className="px-4 py-2">{v.visitor_id}</td>
+                            <td className="px-4 py-2 font-bold">{v.name}</td>
+                            <td className="px-4 py-2">{v.contact}</td>
+                            <td className="px-4 py-2">{v.ticket_type}</td>
+                            <td className="px-4 py-2">{v.last_visit_date}</td>
+                            <td className="px-4 py-2 flex gap-2">
+                              <button onClick={() => startEditVisitor(v)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+              </>
+            ) : activeTab === 'staff' ? (
+              <>
+                <form onSubmit={handleStaffSubmit} className="space-y-4">
+                  {/* STAFF FORM */}
                   <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Age</label>
-                    <input type="number" name="age" value={formData.age} onChange={handleInputChange} placeholder="25" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.age ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                    {errors.age && <p className="text-red-400 text-xs mt-1">{errors.age}</p>}
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Staff Name</label>
+                    <input type="text" name="name" value={staffData.name} onChange={handleStaffChange} placeholder="Jane Doe" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {staffErrors.name && <p className="text-red-400 text-xs mt-1">{staffErrors.name}</p>}
                   </div>
+
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Occupation</label>
+                    <select name="occupation" value={staffData.occupation} onChange={handleStaffChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {['Customer_care', 'Tour_guide', 'Security', 'Admin', 'Manager', 'Custodian'].map(role => (
+                        <option key={role} value={role} className="bg-purple-900">{role.replace('_', ' ')}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Contact</label>
-                    <input type="tel" name="contact" value={formData.contact} onChange={handleInputChange} placeholder="+91..." className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.contact ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                    {errors.contact && <p className="text-red-400 text-xs mt-1">{errors.contact}</p>}
+                    <input type="tel" name="contact" value={staffData.contact} onChange={handleStaffChange} placeholder="9876543210" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.contact ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {staffErrors.contact && <p className="text-red-400 text-xs mt-1">{staffErrors.contact}</p>}
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Email</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="john@example.com" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${errors.email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Nationality</label>
-                    <select name="nationality" value={formData.nationality} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                      {COUNTRIES.map(c => <option key={c} value={c} className="bg-purple-900">{c}</option>)}
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Email</label>
+                    <input type="email" name="email" value={staffData.email} onChange={handleStaffChange} placeholder="jane@museum.com" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {staffErrors.email && <p className="text-red-400 text-xs mt-1">{staffErrors.email}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Joining Date</label>
+                    <input type="date" name="joining_date" value={staffData.joining_date} onChange={handleStaffChange} max={new Date().toISOString().split("T")[0]} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.joining_date ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {staffErrors.joining_date && <p className="text-red-400 text-xs mt-1">{staffErrors.joining_date}</p>}
+                  </div>
+
+                  <button type="submit" className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
+                    Register Staff
+                  </button>
+                </form>
+
+                {/* STAFF SEARCH & LIST */}
+                <div className="mt-8 pt-6 border-t border-purple-700">
+                  <h4 className="text-xl font-bold mb-4 text-purple-200">Manage Staff</h4>
+                  <div className="flex gap-2 mb-4">
+                    <select
+                      value={staffSearch.type}
+                      onChange={(e) => setStaffSearch({ ...staffSearch, type: e.target.value })}
+                      className="bg-purple-800 text-white rounded px-3 py-2 border border-purple-600"
+                    >
+                      <option>Role</option>
+                      <option>Name</option>
                     </select>
+
+                    {staffSearch.type === 'Role' ? (
+                      <select value={staffSearch.role} onChange={e => setStaffSearch({ ...staffSearch, role: e.target.value })} className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600">
+                        {['Customer_care', 'Tour_guide', 'Security', 'Admin', 'Manager', 'Custodian'].map(role => (
+                          <option key={role} value={role}>{role.replace('_', ' ')}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={staffSearch.name}
+                        onChange={e => setStaffSearch({ ...staffSearch, name: e.target.value })}
+                        placeholder="Search by Name..."
+                        className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600 text-white placeholder-purple-400"
+                      />
+                    )}
+                    <button onClick={searchStaff} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
                   </div>
-                  <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Language</label>
-                    <select name="preferred_language" value={formData.preferred_language} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                      {LANGUAGES.map(l => <option key={l} value={l} className="bg-purple-900">{l}</option>)}
-                    </select>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-purple-100">
+                      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
+                        <tr>
+                          <th className="px-4 py-2">ID</th>
+                          <th className="px-4 py-2">Name</th>
+                          <th className="px-4 py-2">Role</th>
+                          <th className="px-4 py-2">Contact</th>
+                          <th className="px-4 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {staffList.map(s => (
+                          <tr key={s.staff_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+                            <td className="px-4 py-2">{s.staff_id}</td>
+                            <td className="px-4 py-2 font-bold">{s.name}</td>
+                            <td className="px-4 py-2">{s.occupation}</td>
+                            <td className="px-4 py-2">{s.contact}</td>
+                            <td className="px-4 py-2 flex gap-2">
+                              <button onClick={() => startEditStaff(s)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                              <button onClick={() => handleDeleteStaff(s.staff_id)} className="text-red-400 hover:text-red-300">Del</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Ticket</label>
-                    <select name="ticket_type" value={formData.ticket_type} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                      {TICKET_TYPES.map(t => <option key={t} value={t} className="bg-purple-900">{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Last Visit</label>
-                    <input type="date" name="last_visit_date" value={formData.last_visit_date} onChange={handleInputChange} max={new Date().toISOString().split("T")[0]} className={`w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400`} />
-                    {errors.last_visit_date && <p className="text-red-400 text-xs mt-1">{errors.last_visit_date}</p>}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">ID Proof</label>
-                  <select name="id_proof" value={formData.id_proof} onChange={handleInputChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                    <option value="Voter ID" className="bg-purple-900">Voter ID</option>
-                    <option value="PAN" className="bg-purple-900">PAN</option>
-                    <option value="Aadhar" className="bg-purple-900">Aadhar</option>
-                  </select>
-                </div>
-
-                <button type="submit" className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-2">
-                  Register Visitor
-                </button>
-              </form>
-            ) : activeTab === 'staff' ? (
-              <form onSubmit={handleStaffSubmit} className="space-y-4">
-                {/* STAFF FORM */}
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Staff Name</label>
-                  <input type="text" name="name" value={staffData.name} onChange={handleStaffChange} placeholder="Jane Doe" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  {staffErrors.name && <p className="text-red-400 text-xs mt-1">{staffErrors.name}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Occupation</label>
-                  <select name="occupation" value={staffData.occupation} onChange={handleStaffChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                    {['Customer_care', 'Tour_guide', 'Security', 'Admin', 'Manager', 'Custodian'].map(role => (
-                      <option key={role} value={role} className="bg-purple-900">{role.replace('_', ' ')}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Contact</label>
-                  <input type="tel" name="contact" value={staffData.contact} onChange={handleStaffChange} placeholder="9876543210" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.contact ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  {staffErrors.contact && <p className="text-red-400 text-xs mt-1">{staffErrors.contact}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Email</label>
-                  <input type="email" name="email" value={staffData.email} onChange={handleStaffChange} placeholder="jane@museum.com" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  {staffErrors.email && <p className="text-red-400 text-xs mt-1">{staffErrors.email}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Joining Date</label>
-                  <input type="date" name="joining_date" value={staffData.joining_date} onChange={handleStaffChange} max={new Date().toISOString().split("T")[0]} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${staffErrors.joining_date ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  {staffErrors.joining_date && <p className="text-red-400 text-xs mt-1">{staffErrors.joining_date}</p>}
-                </div>
-
-                <button type="submit" className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
-                  Register Staff
-                </button>
-              </form>
+              </>
             ) : activeTab === 'finance' ? (
-              <form onSubmit={handleFinanceSubmit} className="space-y-4">
-                {/* FINANCE FORM */}
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Visitor ID</label>
-                  <input type="number" name="visitor_id" value={financeData.visitor_id} onChange={handleFinanceChange} placeholder="1001" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${financeErrors.visitor_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  {financeErrors.visitor_id && <p className="text-red-400 text-xs mt-1">{financeErrors.visitor_id}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              <>
+                <form onSubmit={handleFinanceSubmit} className="space-y-4">
+                  {/* FINANCE FORM */}
                   <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Ticket Type</label>
-                    <select name="ticket_type" value={financeData.ticket_type} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                      {TICKET_TYPES.map(t => <option key={t} value={t} className="bg-purple-900">{t}</option>)}
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Visitor ID</label>
+                    <input type="number" name="visitor_id" value={financeData.visitor_id} onChange={handleFinanceChange} placeholder="1001" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${financeErrors.visitor_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {financeErrors.visitor_id && <p className="text-red-400 text-xs mt-1">{financeErrors.visitor_id}</p>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Ticket Type</label>
+                      <select name="ticket_type" value={financeData.ticket_type} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        {TICKET_TYPES.map(t => <option key={t} value={t} className="bg-purple-900">{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Amount (₹)</label>
+                      <input type="number" name="amount" value={financeData.amount} onChange={handleFinanceChange} placeholder="500" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${financeErrors.amount ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                      {financeErrors.amount && <p className="text-red-400 text-xs mt-1">{financeErrors.amount}</p>}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Method</label>
+                      <select name="payment_method" value={financeData.payment_method} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        {['Card', 'UPI', 'Cash', 'Online'].map(m => <option key={m} value={m} className="bg-purple-900">{m}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Counter</label>
+                      <select name="counter_id" value={financeData.counter_id} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        {['C1', 'C2', 'C3', 'C4'].map(c => <option key={c} value={c} className="bg-purple-900">{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="discount" name="discount_applied" checked={financeData.discount_applied} onChange={handleFinanceChange} className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500" />
+                    <label htmlFor="discount" className="text-purple-200 text-sm font-semibold">Apply Discount?</label>
+                  </div>
+
+                  <button type="submit" className="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
+                    Record Transaction
+                  </button>
+                </form>
+
+                {/* FINANCE SEARCH & LIST */}
+                <div className="mt-8 pt-6 border-t border-purple-700">
+                  <h4 className="text-xl font-bold mb-4 text-purple-200">View Transactions</h4>
+                  <div className="flex gap-2 mb-4">
+                    <input type="date" value={financeSearch.startDate} onChange={e => setFinanceSearch({ ...financeSearch, startDate: e.target.value })} className="bg-purple-800/50 rounded px-3 py-2 border border-purple-600" />
+                    <span className="text-white self-center">to</span>
+                    <input type="date" value={financeSearch.endDate} onChange={e => setFinanceSearch({ ...financeSearch, endDate: e.target.value })} className="bg-purple-800/50 rounded px-3 py-2 border border-purple-600" />
+
+                    <select value={financeSearch.paymentMethod} onChange={e => setFinanceSearch({ ...financeSearch, paymentMethod: e.target.value })} className="bg-purple-800/50 rounded px-3 py-2 border border-purple-600">
+                      <option value="">All Methods</option>
+                      {['Card', 'UPI', 'Cash', 'Online'].map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
+
+                    <button onClick={searchFinance} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Filter</button>
                   </div>
-                  <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Amount (₹)</label>
-                    <input type="number" name="amount" value={financeData.amount} onChange={handleFinanceChange} placeholder="500" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${financeErrors.amount ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                    {financeErrors.amount && <p className="text-red-400 text-xs mt-1">{financeErrors.amount}</p>}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-purple-100">
+                      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
+                        <tr>
+                          <th className="px-4 py-2">ID</th>
+                          <th className="px-4 py-2">Visitor</th>
+                          <th className="px-4 py-2">Amount</th>
+                          <th className="px-4 py-2">Method</th>
+                          <th className="px-4 py-2">Date</th>
+                          <th className="px-4 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {finances.map(f => (
+                          <tr key={f.transaction_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+                            <td className="px-4 py-2">{f.transaction_id}</td>
+                            <td className="px-4 py-2">{f.visitor_id}</td>
+                            <td className="px-4 py-2">₹{f.amount}</td>
+                            <td className="px-4 py-2">{f.payment_method}</td>
+                            <td className="px-4 py-2">{f.transaction_date}</td>
+                            <td className="px-4 py-2 flex gap-2">
+                              <button onClick={() => startEditFinance(f)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Method</label>
-                    <select name="payment_method" value={financeData.payment_method} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                      {['Card', 'UPI', 'Cash', 'Online'].map(m => <option key={m} value={m} className="bg-purple-900">{m}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Counter</label>
-                    <select name="counter_id" value={financeData.counter_id} onChange={handleFinanceChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                      {['C1', 'C2', 'C3', 'C4'].map(c => <option key={c} value={c} className="bg-purple-900">{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 mt-2">
-                  <input type="checkbox" id="discount" name="discount_applied" checked={financeData.discount_applied} onChange={handleFinanceChange} className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500" />
-                  <label htmlFor="discount" className="text-purple-200 text-sm font-semibold">Apply Discount?</label>
-                </div>
-
-                <button type="submit" className="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
-                  Record Transaction
-                </button>
-              </form>
+              </>
             ) : activeTab === 'tours' ? (
               <>
                 <form onSubmit={handleTourSubmit} className="space-y-4">
