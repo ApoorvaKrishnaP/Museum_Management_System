@@ -33,11 +33,34 @@ class ArtifactResponse(ArtifactBase):
 # --- Routes ---
 
 @router.get("/api/artifacts", status_code=200)
-def get_artifacts():
+def get_artifacts(
+    gallery_id: Optional[int] = None,
+    category: Optional[str] = None,
+    historical_period: Optional[str] = None
+):
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT * FROM artifact_information ORDER BY artifact_id ASC") # Assuming table is 'artefact' and PK is 'artifact_id' based on generic convention, or 'artefact_id'. User said 'artifact_id' in prompt description.
+        query = "SELECT * FROM artifact_information"
+        conditions = []
+        params = []
+        
+        if gallery_id:
+            conditions.append("gallery_id = %s")
+            params.append(gallery_id)
+        if category:
+            conditions.append("category ILIKE %s")
+            params.append(f"%{category}%")
+        if historical_period:
+            conditions.append("historical_period ILIKE %s")
+            params.append(f"%{historical_period}%")
+            
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+            
+        query += " ORDER BY artifact_id ASC"
+            
+        cur.execute(query, tuple(params))
         rows = cur.fetchall()
         return rows
     except Exception as e:

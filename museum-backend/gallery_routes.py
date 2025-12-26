@@ -32,11 +32,20 @@ class GalleryResponse(GalleryBase):
 # --- Routes ---
 
 @router.get("/api/galleries", status_code=200)
-def get_galleries():
+def get_galleries(name: Optional[str] = None):
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT * FROM gallery ORDER BY gallery_id ASC")
+        query = "SELECT * FROM gallery"
+        params = []
+        
+        if name:
+            query += " WHERE name ILIKE %s"
+            params.append(f"%{name}%")
+            
+        query += " ORDER BY gallery_id ASC"
+        
+        cur.execute(query, tuple(params))
         rows = cur.fetchall()
         # Convert to list of dicts if using tuple cursor, or directly return if DictCursor
         return rows

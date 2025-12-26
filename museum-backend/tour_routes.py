@@ -33,6 +33,41 @@ class TourCreate(BaseModel):
 
 # --- Routes ---
 
+@router.get("/api/tours", status_code=200)
+def get_tours(
+    date: Optional[date] = None,
+    guide_id: Optional[int] = None,
+    status: Optional[str] = None
+):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        query = "SELECT * FROM tours"
+        conditions = []
+        params = []
+        
+        if date:
+            conditions.append("tour_date = %s")
+            params.append(date)
+        if guide_id:
+            conditions.append("guide_id = %s")
+            params.append(guide_id)
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+            
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+            
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+        return rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
 @router.get("/api/guides", status_code=200)
 def get_tour_guides():
     """Fetch all staff members who are Tour Guides for the dropdown."""

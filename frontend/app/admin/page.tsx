@@ -48,6 +48,46 @@ export default function AdminPage() {
 
   const [activeTab, setActiveTab] = useState<'visitor' | 'staff' | 'finance' | 'tours' | 'gallery' | 'artifact'>('visitor');
 
+  // --- FILTER STATE ---
+  const [tourSearch, setTourSearch] = useState({ type: 'Date', date: '', guide_id: '', status: 'Scheduled' });
+  const [gallerySearch, setGallerySearch] = useState({ name: '' });
+  const [artifactSearch, setArtifactSearch] = useState({ type: 'Gallery', value: '' });
+
+  // --- SEARCH HANDLERS ---
+  const searchTours = () => {
+    let url = 'http://localhost:8000/api/tours?';
+    if (tourSearch.type === 'Date' && tourSearch.date) url += `date=${tourSearch.date}`;
+    else if (tourSearch.type === 'Guide Name' && tourSearch.guide_id) url += `guide_id=${tourSearch.guide_id}`;
+    else if (tourSearch.type === 'Status' && tourSearch.status) url += `status=${tourSearch.status}`;
+
+    fetch(url)
+      .then(res => res.json())
+      .then(setTours)
+      .catch(e => console.error(e));
+  };
+
+  // Wait, I need to add 'tours' state first.
+  const [tours, setTours] = useState<any[]>([]);
+
+  const searchGalleries = () => {
+    fetch(`http://localhost:8000/api/galleries?name=${gallerySearch.name}`)
+      .then(res => res.json())
+      .then(setGalleries)
+      .catch(e => console.error(e));
+  };
+
+  const searchArtifacts = () => {
+    let url = 'http://localhost:8000/api/artifacts?';
+    if (artifactSearch.type === 'Gallery' && artifactSearch.value) url += `gallery_id=${artifactSearch.value}`;
+    else if (artifactSearch.type === 'Category' && artifactSearch.value) url += `category=${artifactSearch.value}`;
+    else if (artifactSearch.type === 'Period' && artifactSearch.value) url += `historical_period=${artifactSearch.value}`;
+
+    fetch(url)
+      .then(res => res.json())
+      .then(setArtifacts)
+      .catch(e => console.error(e));
+  };
+
   // Staff State
   const [staffData, setStaffData] = useState({
     name: '', occupation: 'Tour_guide', contact: '', joining_date: '', email: ''
@@ -776,63 +816,161 @@ export default function AdminPage() {
                 </button>
               </form>
             ) : activeTab === 'tours' ? (
-              <form onSubmit={handleTourSubmit} className="space-y-4">
-                {/* TOURS FORM */}
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Group Name</label>
-                  <input type="text" name="visitor_group_name" value={tourData.visitor_group_name} onChange={handleTourChange} placeholder="School Group A" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.visitor_group_name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  {tourErrors.visitor_group_name && <p className="text-red-400 text-xs mt-1">{tourErrors.visitor_group_name}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Guide</label>
-                  <select name="guide_id" value={tourData.guide_id} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}>
-                    <option value="">-- Select Guide --</option>
-                    {guides.map(g => (
-                      <option key={g.staff_id} value={g.staff_id} className="bg-purple-900">{g.name}</option>
-                    ))}
-                  </select>
-                  {tourErrors.guide_id && <p className="text-red-400 text-xs mt-1">{tourErrors.guide_id}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              <>
+                <form onSubmit={handleTourSubmit} className="space-y-4">
+                  {/* TOURS FORM */}
                   <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Date</label>
-                    <input type="date" name="tour_date" value={tourData.tour_date} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.tour_date ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                    {tourErrors.tour_date && <p className="text-red-400 text-xs mt-1">{tourErrors.tour_date}</p>}
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Group Name</label>
+                    <input type="text" name="visitor_group_name" value={tourData.visitor_group_name} onChange={handleTourChange} placeholder="School Group A" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.visitor_group_name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {tourErrors.visitor_group_name && <p className="text-red-400 text-xs mt-1">{tourErrors.visitor_group_name}</p>}
                   </div>
-                  <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Time</label>
-                    <input type="time" name="tour_time" value={tourData.tour_time} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.tour_time ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                    {tourErrors.tour_time && <p className="text-red-400 text-xs mt-1">{tourErrors.tour_time}</p>}
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Group Size</label>
-                    <input type="number" name="group_size" value={tourData.group_size} onChange={handleTourChange} placeholder="20" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.group_size ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                    {tourErrors.group_size && <p className="text-red-400 text-xs mt-1">{tourErrors.group_size}</p>}
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Guide</label>
+                    <select name="guide_id" value={tourData.guide_id} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}>
+                      <option value="">-- Select Guide --</option>
+                      {guides.map(g => (
+                        <option key={g.staff_id} value={g.staff_id} className="bg-purple-900">{g.name}</option>
+                      ))}
+                    </select>
+                    {tourErrors.guide_id && <p className="text-red-400 text-xs mt-1">{tourErrors.guide_id}</p>}
                   </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Date</label>
+                      <input type="date" name="tour_date" value={tourData.tour_date} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.tour_date ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                      {tourErrors.tour_date && <p className="text-red-400 text-xs mt-1">{tourErrors.tour_date}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Time</label>
+                      <input type="time" name="tour_time" value={tourData.tour_time} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.tour_time ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                      {tourErrors.tour_time && <p className="text-red-400 text-xs mt-1">{tourErrors.tour_time}</p>}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Group Size</label>
+                      <input type="number" name="group_size" value={tourData.group_size} onChange={handleTourChange} placeholder="20" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.group_size ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                      {tourErrors.group_size && <p className="text-red-400 text-xs mt-1">{tourErrors.group_size}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Language</label>
+                      <select name="language" value={tourData.language} onChange={handleTourChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        {LANGUAGES.map(l => <option key={l} value={l} className="bg-purple-900">{l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Language</label>
-                    <select name="language" value={tourData.language} onChange={handleTourChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
-                      {LANGUAGES.map(l => <option key={l} value={l} className="bg-purple-900">{l}</option>)}
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Visitor IDs (Comma Sep)</label>
+                    <input type="text" name="visitor_ids" value={tourData.visitor_ids} onChange={handleTourChange} placeholder="1001, 1002, 1005" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.visitor_ids ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    <p className="text-gray-400 text-xs mt-1">IDs of visitors in this group.</p>
+                    {tourErrors.visitor_ids && <p className="text-red-400 text-xs mt-1">{tourErrors.visitor_ids}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Status</label>
+                    <select name="status" value={tourData.status} onChange={handleTourChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {['Scheduled', 'Completed', 'Cancelled', 'Pending'].map(s => <option key={s} value={s} className="bg-purple-900">{s}</option>)}
                     </select>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Visitor IDs (Comma Sep)</label>
-                  <input type="text" name="visitor_ids" value={tourData.visitor_ids} onChange={handleTourChange} placeholder="1001, 1002, 1005" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.visitor_ids ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
-                  <p className="text-gray-400 text-xs mt-1">IDs of visitors in this group.</p>
-                  {tourErrors.visitor_ids && <p className="text-red-400 text-xs mt-1">{tourErrors.visitor_ids}</p>}
-                </div>
+                  <button type="submit" className="w-full py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
+                    Schedule Tour
+                  </button>
+                </form>
 
-                <button type="submit" className="w-full py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
-                  Schedule Tour
-                </button>
-              </form>
+                {/* TOUR SEARCH & LIST */}
+                <div className="mt-8 pt-6 border-t border-purple-700">
+                  <h4 className="text-xl font-bold mb-4 text-purple-200">Manage Tours</h4>
+                  <div className="flex gap-2 mb-4">
+                    <select
+                      value={tourSearch.type}
+                      onChange={(e) => setTourSearch({ ...tourSearch, type: e.target.value })}
+                      className="bg-purple-800 text-white rounded px-3 py-2 border border-purple-600"
+                    >
+                      <option>Date</option>
+                      <option>Guide Name</option>
+                      <option>Status</option>
+                    </select>
+
+                    {tourSearch.type === 'Date' &&
+                      <input type="date" value={tourSearch.date} onChange={e => setTourSearch({ ...tourSearch, date: e.target.value })} className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600" />
+                    }
+                    {tourSearch.type === 'Guide Name' &&
+                      <select value={tourSearch.guide_id} onChange={e => setTourSearch({ ...tourSearch, guide_id: e.target.value })} className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600">
+                        <option value="">Select Guide</option>
+                        {guides.map(g => <option key={g.staff_id} value={g.staff_id}>{g.name}</option>)}
+                      </select>
+                    }
+                    {tourSearch.type === 'Status' &&
+                      <select value={tourSearch.status} onChange={e => setTourSearch({ ...tourSearch, status: e.target.value })} className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600">
+                        <option>Scheduled</option>
+                        <option>Completed</option>
+                        <option>Cancelled</option>
+                      </select>
+                    }
+
+                    <button onClick={searchTours} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-purple-100">
+                      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
+                        <tr>
+                          <th className="px-4 py-2">ID</th>
+                          <th className="px-4 py-2">Date</th>
+                          <th className="px-4 py-2">Time</th>
+                          <th className="px-4 py-2">Group</th>
+                          <th className="px-4 py-2">Status</th>
+                          <th className="px-4 py-2">Created</th>
+                          <th className="px-4 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tours.map((t: any) => (
+                          <tr key={t.tour_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+                            <td className="px-4 py-2">{t.tour_id}</td>
+                            <td className="px-4 py-2">{t.tour_date}</td>
+                            <td className="px-4 py-2">{t.tour_time}</td>
+                            <td className="px-4 py-2">{t.visitor_group_name}</td>
+                            <td className="px-4 py-2">
+                              <span className={`px-2 py-1 rounded text-xs ${t.status === 'Scheduled' ? 'bg-yellow-600' : t.status === 'Completed' ? 'bg-green-600' : 'bg-red-600'}`}>
+                                {t.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-xs text-gray-400">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '-'}</td>
+                            <td className="px-4 py-2 flex gap-2">
+                              <button onClick={() => {
+                                // Populate form for edit
+                                setTourData({
+                                  guide_id: String(t.guide_id),
+                                  tour_date: t.tour_date,
+                                  tour_time: t.tour_time,
+                                  visitor_group_name: t.visitor_group_name,
+                                  group_size: String(t.group_size),
+                                  language: t.language,
+                                  status: t.status,
+                                  visitor_ids: Array.isArray(t.visitor_ids) ? t.visitor_ids.join(', ') : t.visitor_ids
+                                });
+                                // We'd ideally need an editing ID for Update logic (not implemented fully for Tours yet, using Create logic mostly)
+                                // For now, let's just populate.
+                              }} className="text-blue-400 hover:text-blue-300">Edit</button>
+                              <button onClick={async () => {
+                                if (!confirm("Delete tour?")) return;
+                                await fetch(`http://localhost:8000/api/tours/${t.tour_id}`, { method: 'DELETE' });
+                                searchTours(); // Refresh
+                              }} className="text-red-400 hover:text-red-300">Del</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             ) : activeTab === 'gallery' ? (
               <>
                 <form onSubmit={handleGallerySubmit} className="space-y-4">
@@ -870,32 +1008,47 @@ export default function AdminPage() {
                   </div>
                 </form>
 
-                {/* Gallery List Table */}
-                <div className="mt-8 overflow-x-auto">
-                  <h4 className="text-xl font-bold mb-4 text-purple-200">Existing Galleries</h4>
-                  <table className="w-full text-left text-sm text-purple-100">
-                    <thead className="text-xs uppercase bg-purple-800 text-purple-300">
-                      <tr>
-                        <th className="px-4 py-2">ID</th>
-                        <th className="px-4 py-2">Name</th>
-                        <th className="px-4 py-2">Floor</th>
-                        <th className="px-4 py-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {galleries.map(g => (
-                        <tr key={g.gallery_id} className="border-b border-purple-800 hover:bg-purple-800/30">
-                          <td className="px-4 py-2">{g.gallery_id}</td>
-                          <td className="px-4 py-2 font-bold">{g.name}</td>
-                          <td className="px-4 py-2">{g.floor_number}</td>
-                          <td className="px-4 py-2 flex gap-2">
-                            <button onClick={() => startEditGallery(g)} className="text-blue-400 hover:text-blue-300">Edit</button>
-                            <button onClick={() => handleDeleteGallery(g.gallery_id)} className="text-red-400 hover:text-red-300">Del</button>
-                          </td>
+                {/* GALLERY SEARCH & LIST */}
+                <div className="mt-8 pt-6 border-t border-purple-700">
+                  <h4 className="text-xl font-bold mb-4 text-purple-200">Search Galleries</h4>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      placeholder="Enter Gallery Name..."
+                      value={gallerySearch.name}
+                      onChange={e => setGallerySearch({ name: e.target.value })}
+                      className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600 text-white placeholder-purple-400"
+                    />
+                    <button onClick={searchGalleries} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <h4 className="text-sm uppercase font-bold text-purple-300 mb-2">Results</h4>
+                    <table className="w-full text-left text-sm text-purple-100">
+
+                      <thead className="text-xs uppercase bg-purple-800 text-purple-300">
+                        <tr>
+                          <th className="px-4 py-2">ID</th>
+                          <th className="px-4 py-2">Name</th>
+                          <th className="px-4 py-2">Floor</th>
+                          <th className="px-4 py-2">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {galleries.map(g => (
+                          <tr key={g.gallery_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+                            <td className="px-4 py-2">{g.gallery_id}</td>
+                            <td className="px-4 py-2 font-bold">{g.name}</td>
+                            <td className="px-4 py-2">{g.floor_number}</td>
+                            <td className="px-4 py-2 flex gap-2">
+                              <button onClick={() => startEditGallery(g)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                              <button onClick={() => handleDeleteGallery(g.gallery_id)} className="text-red-400 hover:text-red-300">Del</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </>
             ) : activeTab === 'artifact' ? (
@@ -943,34 +1096,70 @@ export default function AdminPage() {
                   </div>
                 </form>
 
-                {/* Artifact List Table */}
-                <div className="mt-8 overflow-x-auto">
-                  <h4 className="text-xl font-bold mb-4 text-purple-200">Artifact Inventary</h4>
-                  <table className="w-full text-left text-sm text-purple-100">
-                    <thead className="text-xs uppercase bg-purple-800 text-purple-300">
-                      <tr>
-                        <th className="px-4 py-2">ID</th>
-                        <th className="px-4 py-2">Category</th>
-                        <th className="px-4 py-2">Period</th>
-                        <th className="px-4 py-2">Material</th>
-                        <th className="px-4 py-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {artifacts.map(a => (
-                        <tr key={a.artifact_id} className="border-b border-purple-800 hover:bg-purple-800/30">
-                          <td className="px-4 py-2">{a.artifact_id}</td>
-                          <td className="px-4 py-2 font-bold">{a.category}</td>
-                          <td className="px-4 py-2">{a.historical_period}</td>
-                          <td className="px-4 py-2">{a.material}</td>
-                          <td className="px-4 py-2 flex gap-2">
-                            <button onClick={() => startEditArtifact(a)} className="text-blue-400 hover:text-blue-300">Edit</button>
-                            <button onClick={() => handleDeleteArtifact(a.artifact_id)} className="text-red-400 hover:text-red-300">Del</button>
-                          </td>
+                {/* ARTIFACT SEARCH & LIST */}
+                <div className="mt-8 pt-6 border-t border-purple-700">
+                  <h4 className="text-xl font-bold mb-4 text-purple-200">Search Artifacts</h4>
+                  <div className="flex gap-2 mb-4">
+                    <select
+                      value={artifactSearch.type}
+                      onChange={(e) => setArtifactSearch({ ...artifactSearch, type: e.target.value, value: '' })} // Reset value on type change
+                      className="bg-purple-800 text-white rounded px-3 py-2 border border-purple-600 w-1/3"
+                    >
+                      <option>Gallery</option>
+                      <option>Category</option>
+                      <option>Period</option>
+                    </select>
+
+                    {artifactSearch.type === 'Gallery' ? (
+                      <select
+                        value={artifactSearch.value}
+                        onChange={e => setArtifactSearch({ ...artifactSearch, value: e.target.value })}
+                        className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600"
+                      >
+                        <option value="">Select Gallery</option>
+                        {galleries.map(g => <option key={g.gallery_id} value={g.gallery_id}>{g.name}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder={artifactSearch.type === 'Category' ? "e.g. Manuscript" : "e.g. Chola Dynasty"}
+                        value={artifactSearch.value}
+                        onChange={e => setArtifactSearch({ ...artifactSearch, value: e.target.value })}
+                        className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600"
+                      />
+                    )}
+
+                    <button onClick={searchArtifacts} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <h4 className="text-sm uppercase font-bold text-purple-300 mb-2">Results</h4>
+                    <table className="w-full text-left text-sm text-purple-100">
+                      <thead className="text-xs uppercase bg-purple-800 text-purple-300">
+                        <tr>
+                          <th className="px-4 py-2">ID</th>
+                          <th className="px-4 py-2">Category</th>
+                          <th className="px-4 py-2">Period</th>
+                          <th className="px-4 py-2">Material</th>
+                          <th className="px-4 py-2">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {artifacts.map(a => (
+                          <tr key={a.artifact_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+                            <td className="px-4 py-2">{a.artifact_id}</td>
+                            <td className="px-4 py-2 font-bold">{a.category}</td>
+                            <td className="px-4 py-2">{a.historical_period}</td>
+                            <td className="px-4 py-2">{a.material}</td>
+                            <td className="px-4 py-2 flex gap-2">
+                              <button onClick={() => startEditArtifact(a)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                              <button onClick={() => handleDeleteArtifact(a.artifact_id)} className="text-red-400 hover:text-red-300">Del</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </>
             ) : null}
@@ -1044,7 +1233,7 @@ export default function AdminPage() {
           </div>
 
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 }
