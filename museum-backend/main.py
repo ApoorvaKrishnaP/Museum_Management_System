@@ -11,13 +11,13 @@ from artifact_routes import router as artifact_router
 
 app = FastAPI(title="Museum Analytics API")
 
-# Configure CORS for frontend communication
+# Configure CORS for frontend communication (MUST be added first)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Update with your frontend URL
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Include authentication routes
