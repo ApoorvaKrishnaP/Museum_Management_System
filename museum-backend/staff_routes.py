@@ -89,38 +89,38 @@ def create_staff(staff: StaffCreate):
              raise HTTPException(status_code=400, detail="Staff with this email or contact already exists.")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-@router.get("/api/staff", status_code=200)
-def get_staff(
-    role: Optional[str] = None,
-    name: Optional[str] = None
-):
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        query = "SELECT * FROM staff"
-        conditions = []
-        params = []
-        
-        if role:
-            conditions.append("occupation = %s")
-            params.append(role)
-        if name:
-            conditions.append("name ILIKE %s")
-            params.append(f"%{name}%")
-            
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-        
-        query += " ORDER BY staff_id ASC"
-            
-        cur.execute(query, tuple(params))
-        rows = cur.fetchall()
-        return rows
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        cur.close()
-        conn.close()
+        @router.get("/api/staff", status_code=200)
+        def get_staff(
+            role: Optional[str] = None,
+            name: Optional[str] = None
+        ):
+            conn = get_conn()
+            cur = conn.cursor()
+            try:
+                query = "SELECT * FROM staff"
+                conditions = []
+                params = []
+                
+                if role:
+                    conditions.append("occupation = %s")
+                    params.append(role)
+                if name:
+                    conditions.append("name ILIKE %s")
+                    params.append(f"%{name}%")
+                    
+                if conditions:
+                    query += " WHERE " + " AND ".join(conditions)
+                
+                query += " ORDER BY staff_id ASC"
+                    
+                cur.execute(query, tuple(params))
+                rows = cur.fetchall()
+                return rows
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+            finally:
+                cur.close()
+                conn.close()
 
 @router.put("/api/staff/{staff_id}", status_code=200)
 def update_staff(staff_id: int, staff: StaffCreate):

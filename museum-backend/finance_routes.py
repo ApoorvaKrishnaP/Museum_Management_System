@@ -84,6 +84,9 @@ def create_transaction(finance: FinanceCreate):
              raise HTTPException(status_code=400, detail="Invalid Visitor ID.")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
+        cur.close()
+        conn.close()
+
 @router.get("/api/finance", status_code=200)
 def get_finance(
     start_date: Optional[date] = None,
@@ -106,7 +109,7 @@ def get_finance(
         if payment_method:
             conditions.append("payment_method = %s")
             params.append(payment_method)
-            
+                
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         
