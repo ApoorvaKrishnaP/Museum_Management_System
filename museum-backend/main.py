@@ -5,6 +5,9 @@ from auth_routes import router as auth_router
 from visitor_routes import router as visitor_router
 from staff_routes import router as staff_router
 from finance_routes import router as finance_router
+from tour_routes import router as tour_router
+from gallery_routes import router as gallery_router
+from artifact_routes import router as artifact_router
 
 app = FastAPI(title="Museum Analytics API")
 
@@ -22,6 +25,9 @@ app.include_router(auth_router)
 app.include_router(visitor_router)
 app.include_router(staff_router)
 app.include_router(finance_router)
+app.include_router(tour_router)
+app.include_router(gallery_router)
+app.include_router(artifact_router)
 
 @app.get("/")
 def read_root():

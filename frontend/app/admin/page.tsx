@@ -29,7 +29,24 @@ export default function AdminPage() {
 
 
 
-  const [activeTab, setActiveTab] = useState<'visitor' | 'staff' | 'finance'>('visitor');
+  // Gallery State
+  const [galleries, setGalleries] = useState<any[]>([]);
+  const [galleryData, setGalleryData] = useState({ name: '', floor_number: '', theme: '', average_visit_count: '0', total_artefacts: '0' });
+  const [editingGalleryId, setEditingGalleryId] = useState<number | null>(null);
+
+  // Artifact State
+  const [artifacts, setArtifacts] = useState<any[]>([]);
+  const [artifactData, setArtifactData] = useState({
+    gallery_id: '',
+    historical_period: '',
+    category: '',
+    material: '',
+    condition_status: 'Excellent',
+    audio_guide_id: ''
+  });
+  const [editingArtifactId, setEditingArtifactId] = useState<number | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'visitor' | 'staff' | 'finance' | 'tours' | 'gallery' | 'artifact'>('visitor');
 
   // Staff State
   const [staffData, setStaffData] = useState({
@@ -48,23 +65,85 @@ export default function AdminPage() {
   });
   const [financeErrors, setFinanceErrors] = useState<{ [key: string]: string }>({});
 
+  // Tours State
+  const [tourData, setTourData] = useState({
+    guide_id: '',
+    tour_date: '',
+    tour_time: '',
+    visitor_group_name: '',
+    group_size: '',
+    language: 'English',
+    status: 'Scheduled',
+    visitor_ids: '' // Comma separated string for input
+  });
+  const [tourErrors, setTourErrors] = useState<{ [key: string]: string }>({});
+  const [guides, setGuides] = useState<any[]>([]);
+
+
   useEffect(() => {
-    // Check if user is logged in and is an admin
+    // Check if user is logged in
     const savedUser = localStorage.getItem('user');
-    if (!savedUser) {
-      router.push('/');
-      return;
-    }
-
+    if (!savedUser) { router.push('/'); return; }
     const userData = JSON.parse(savedUser);
-    if (userData.role !== 'admin') {
-      router.push('/');
-      return;
-    }
-
+    if (userData.role !== 'admin') { router.push('/'); return; }
     setUser(userData);
     setLoading(false);
   }, [router]);
+
+  // Fetch Guides when tours tab is active
+  useEffect(() => {
+    if (activeTab === 'tours') {
+      fetch('http://localhost:8000/api/guides')
+        .then(res => res.json())
+        .then(data => setGuides(data))
+        .catch(err => console.error("Failed to load guides", err));
+    } else if (activeTab === 'gallery') {
+      fetch('http://localhost:8000/api/galleries')
+        .then(res => {
+          if (!res.ok) throw new Error("Failed to fetch galleries");
+          return res.json();
+        })
+        .then(data => {
+          if (Array.isArray(data)) setGalleries(data);
+          else {
+            console.error("Galleries response is not an array:", data);
+            setGalleries([]);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load galleries", err);
+          setGalleries([]);
+        });
+    } else if (activeTab === 'artifact') {
+      fetch('http://localhost:8000/api/artifacts')
+        .then(res => {
+          if (!res.ok) throw new Error("Failed to fetch artifacts");
+          return res.json();
+        })
+        .then(data => {
+          if (Array.isArray(data)) setArtifacts(data);
+          else {
+            console.error("Artifacts response is not an array:", data);
+            setArtifacts([]);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load artifacts", err);
+          setArtifacts([]);
+        });
+
+      // Also need galleries for dropdown
+      fetch('http://localhost:8000/api/galleries')
+        .then(res => {
+          if (!res.ok) return [];
+          return res.json();
+        })
+        .then(data => {
+          if (Array.isArray(data)) setGalleries(data);
+        })
+        .catch(err => console.error("Failed to load galleries for dropdown", err));
+    }
+  }, [activeTab]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -235,6 +314,187 @@ export default function AdminPage() {
     }
   };
 
+  // --- TOUR HANDLERS ---
+  const handleTourChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setTourData(prev => ({ ...prev, [name]: value }));
+    if (tourErrors[name]) setTourErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  const validateTourForm = () => {
+    const newErrors: { [key: string]: string } = {};
+    if (!tourData.guide_id) newErrors.guide_id = "Please select a guide.";
+    if (!tourData.visitor_group_name.trim()) newErrors.visitor_group_name = "Group Name is required.";
+    if (!tourData.group_size || Number(tourData.group_size) <= 0) newErrors.group_size = "Valid group size required.";
+    if (!tourData.tour_date) newErrors.tour_date = "Date is required.";
+    if (!tourData.tour_time) newErrors.tour_time = "Time is required.";
+    if (!tourData.visitor_ids.trim()) {
+      newErrors.visitor_ids = "Enter at least one Visitor ID.";
+    } else {
+      // simple check if comma separated numbers
+      const ids = tourData.visitor_ids.split(',').map(s => s.trim());
+      if (ids.some(id => isNaN(Number(id)))) newErrors.visitor_ids = "IDs must be numbers separated by commas.";
+    }
+
+    setTourErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+
+
+  // --- GALLERY HANDLERS ---
+  const handleGalleryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setGalleryData({ ...galleryData, [e.target.name]: e.target.value });
+  };
+
+
+
+  const validateGalleryForm = () => {
+    if (!galleryData.name.trim()) { alert("Gallery Name is required"); return false; }
+    if (!galleryData.floor_number || Number(galleryData.floor_number) <= 0) { alert("Valid Floor Number is required"); return false; }
+    if (!galleryData.theme.trim()) { alert("Theme is required"); return false; }
+    return true;
+  };
+
+  const handleGallerySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateGalleryForm()) return;
+
+    const url = editingGalleryId ? `http://localhost:8000/api/galleries/${editingGalleryId}` : 'http://localhost:8000/api/galleries';
+    const method = editingGalleryId ? 'PUT' : 'POST';
+    const payload = {
+      ...galleryData,
+      floor_number: Number(galleryData.floor_number),
+      average_visit_count: Number(galleryData.average_visit_count),
+      total_artefacts: Number(galleryData.total_artefacts)
+    };
+
+    try {
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (res.ok) {
+        alert(editingGalleryId ? 'Gallery updated!' : 'Gallery created!');
+        setGalleryData({ name: '', floor_number: '', theme: '', average_visit_count: '0', total_artefacts: '0' });
+        setEditingGalleryId(null);
+        // Refresh list
+        fetch('http://localhost:8000/api/galleries').then(r => r.json()).then(setGalleries);
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.detail}`);
+      }
+    } catch (e) { console.error(e); alert("Failed"); }
+  };
+
+  const handleDeleteGallery = async (id: number) => {
+    if (!confirm("Are you sure?")) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/galleries/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setGalleries(prev => prev.filter(g => g.gallery_id !== id));
+      }
+    } catch (e) { console.error(e); alert("Failed"); }
+  };
+
+  const startEditGallery = (g: any) => {
+    setGalleryData({
+      name: g.name, floor_number: String(g.floor_number), theme: g.theme,
+      average_visit_count: String(g.average_visit_count || 0), total_artefacts: String(g.total_artefacts || 0)
+    });
+    setEditingGalleryId(g.gallery_id);
+    setActiveTab('gallery'); // Access form
+  };
+
+  // --- ARTIFACT HANDLERS ---
+  const handleArtifactChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setArtifactData({ ...artifactData, [e.target.name]: e.target.value });
+  };
+
+  const validateArtifactForm = () => {
+    if (!artifactData.gallery_id) { alert("Please select a Gallery"); return false; }
+    if (!artifactData.category.trim()) { alert("Category is required"); return false; }
+    if (!artifactData.historical_period.trim()) { alert("Historical Period is required"); return false; }
+    if (!artifactData.material.trim()) { alert("Material is required"); return false; }
+    return true;
+  };
+
+  const handleArtifactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateArtifactForm()) return;
+
+    const url = editingArtifactId ? `http://localhost:8000/api/artifacts/${editingArtifactId}` : 'http://localhost:8000/api/artifacts';
+    const method = editingArtifactId ? 'PUT' : 'POST';
+    const payload = {
+      ...artifactData,
+      gallery_id: Number(artifactData.gallery_id),
+      audio_guide_id: artifactData.audio_guide_id ? Number(artifactData.audio_guide_id) : null
+    };
+
+    try {
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (res.ok) {
+        alert(editingArtifactId ? 'Artifact updated!' : 'Artifact created!');
+        setArtifactData({ gallery_id: '', historical_period: '', category: '', material: '', condition_status: 'Excellent', audio_guide_id: '' });
+        setEditingArtifactId(null);
+        fetch('http://localhost:8000/api/artifacts').then(r => r.json()).then(setArtifacts);
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.detail}`);
+      }
+    } catch (e) { console.error(e); alert("Failed"); }
+  };
+
+  const handleDeleteArtifact = async (id: number) => {
+    if (!confirm("Are you sure?")) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/artifacts/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setArtifacts(prev => prev.filter(a => a.artifact_id !== id));
+      }
+    } catch (e) { console.error(e); alert("Failed"); }
+  };
+
+  const startEditArtifact = (a: any) => {
+    setArtifactData({
+      gallery_id: String(a.gallery_id), historical_period: a.historical_period, category: a.category,
+      material: a.material, condition_status: a.condition_status, audio_guide_id: String(a.audio_guide_id || '')
+    });
+    setEditingArtifactId(a.artifact_id);
+    setActiveTab('artifact');
+  };
+
+  const handleTourSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateTourForm()) return;
+
+    try {
+      const payload = {
+        ...tourData,
+        guide_id: Number(tourData.guide_id),
+        group_size: Number(tourData.group_size),
+        visitor_ids: tourData.visitor_ids.split(',').map(s => Number(s.trim())) // Convert string "1,2,3" to [1,2,3]
+      };
+
+      const res = await fetch('http://localhost:8000/api/tours', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        alert('Tour scheduled successfully!');
+        setTourData({
+          guide_id: '', tour_date: '', tour_time: '', visitor_group_name: '',
+          group_size: '', language: 'English', status: 'Scheduled', visitor_ids: ''
+        });
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.detail}`);
+      }
+    } catch (error) {
+      console.error("Failed", error);
+      alert("Failed to connect to server.");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -327,13 +587,33 @@ export default function AdminPage() {
               >
                 Finance
               </button>
+              <button
+                onClick={() => setActiveTab('tours')}
+                className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${activeTab === 'tours' ? 'bg-purple-600 text-white shadow' : 'text-purple-300 hover:text-white'}`}
+              >
+                Tours
+              </button>
+              <button
+                onClick={() => setActiveTab('gallery')}
+                className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${activeTab === 'gallery' ? 'bg-purple-600 text-white shadow' : 'text-purple-300 hover:text-white'}`}
+              >
+                Gallery
+              </button>
+              <button
+                onClick={() => setActiveTab('artifact')}
+                className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${activeTab === 'artifact' ? 'bg-purple-600 text-white shadow' : 'text-purple-300 hover:text-white'}`}
+              >
+                Artifact
+              </button>
             </div>
 
             <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
               <span>
                 {activeTab === 'visitor' ? '📝 Register Visitor' :
                   activeTab === 'staff' ? '👔 Register Staff' :
-                    '💰 Record Transaction'}
+                    activeTab === 'finance' ? '💰 Record Transaction' :
+                      activeTab === 'tours' ? '📅 Schedule Tour' :
+                        activeTab === 'gallery' ? '🖼️ Manage Gallery' : '🏺 Manage Artifacts'}
               </span>
             </h3>
 
@@ -448,7 +728,7 @@ export default function AdminPage() {
                   Register Staff
                 </button>
               </form>
-            ) : (
+            ) : activeTab === 'finance' ? (
               <form onSubmit={handleFinanceSubmit} className="space-y-4">
                 {/* FINANCE FORM */}
                 <div>
@@ -495,13 +775,209 @@ export default function AdminPage() {
                   Record Transaction
                 </button>
               </form>
-            )}
+            ) : activeTab === 'tours' ? (
+              <form onSubmit={handleTourSubmit} className="space-y-4">
+                {/* TOURS FORM */}
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Group Name</label>
+                  <input type="text" name="visitor_group_name" value={tourData.visitor_group_name} onChange={handleTourChange} placeholder="School Group A" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.visitor_group_name ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  {tourErrors.visitor_group_name && <p className="text-red-400 text-xs mt-1">{tourErrors.visitor_group_name}</p>}
+                </div>
 
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Guide</label>
+                  <select name="guide_id" value={tourData.guide_id} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}>
+                    <option value="">-- Select Guide --</option>
+                    {guides.map(g => (
+                      <option key={g.staff_id} value={g.staff_id} className="bg-purple-900">{g.name}</option>
+                    ))}
+                  </select>
+                  {tourErrors.guide_id && <p className="text-red-400 text-xs mt-1">{tourErrors.guide_id}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Date</label>
+                    <input type="date" name="tour_date" value={tourData.tour_date} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.tour_date ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {tourErrors.tour_date && <p className="text-red-400 text-xs mt-1">{tourErrors.tour_date}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Time</label>
+                    <input type="time" name="tour_time" value={tourData.tour_time} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.tour_time ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {tourErrors.tour_time && <p className="text-red-400 text-xs mt-1">{tourErrors.tour_time}</p>}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Group Size</label>
+                    <input type="number" name="group_size" value={tourData.group_size} onChange={handleTourChange} placeholder="20" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.group_size ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                    {tourErrors.group_size && <p className="text-red-400 text-xs mt-1">{tourErrors.group_size}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Language</label>
+                    <select name="language" value={tourData.language} onChange={handleTourChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                      {LANGUAGES.map(l => <option key={l} value={l} className="bg-purple-900">{l}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Visitor IDs (Comma Sep)</label>
+                  <input type="text" name="visitor_ids" value={tourData.visitor_ids} onChange={handleTourChange} placeholder="1001, 1002, 1005" className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.visitor_ids ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`} required />
+                  <p className="text-gray-400 text-xs mt-1">IDs of visitors in this group.</p>
+                  {tourErrors.visitor_ids && <p className="text-red-400 text-xs mt-1">{tourErrors.visitor_ids}</p>}
+                </div>
+
+                <button type="submit" className="w-full py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold rounded shadow transform active:scale-95 transition-all mt-4">
+                  Schedule Tour
+                </button>
+              </form>
+            ) : activeTab === 'gallery' ? (
+              <>
+                <form onSubmit={handleGallerySubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Gallery Name</label>
+                    <input type="text" name="name" value={galleryData.name} onChange={handleGalleryChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" required />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Floor No.</label>
+                      <input type="number" name="floor_number" value={galleryData.floor_number} onChange={handleGalleryChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" required />
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Theme</label>
+                      <input type="text" name="theme" value={galleryData.theme} onChange={handleGalleryChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" required />
+                    </div>
+                  </div>
+                  {/* Optional Analytics fields if manual entry desired */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Avg Visits</label>
+                      <input type="number" name="average_visit_count" value={galleryData.average_visit_count} onChange={handleGalleryChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Total Artifacts</label>
+                      <input type="number" name="total_artefacts" value={galleryData.total_artefacts} onChange={handleGalleryChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold rounded shadow transition-all">
+                      {editingGalleryId ? 'Update Gallery' : 'Create Gallery'}
+                    </button>
+                    {editingGalleryId && <button type="button" onClick={() => { setEditingGalleryId(null); setGalleryData({ name: '', floor_number: '', theme: '', average_visit_count: '0', total_artefacts: '0' }) }} className="px-4 py-3 bg-gray-600 text-white rounded hover:bg-gray-500">Cancel</button>}
+                  </div>
+                </form>
+
+                {/* Gallery List Table */}
+                <div className="mt-8 overflow-x-auto">
+                  <h4 className="text-xl font-bold mb-4 text-purple-200">Existing Galleries</h4>
+                  <table className="w-full text-left text-sm text-purple-100">
+                    <thead className="text-xs uppercase bg-purple-800 text-purple-300">
+                      <tr>
+                        <th className="px-4 py-2">ID</th>
+                        <th className="px-4 py-2">Name</th>
+                        <th className="px-4 py-2">Floor</th>
+                        <th className="px-4 py-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {galleries.map(g => (
+                        <tr key={g.gallery_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+                          <td className="px-4 py-2">{g.gallery_id}</td>
+                          <td className="px-4 py-2 font-bold">{g.name}</td>
+                          <td className="px-4 py-2">{g.floor_number}</td>
+                          <td className="px-4 py-2 flex gap-2">
+                            <button onClick={() => startEditGallery(g)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                            <button onClick={() => handleDeleteGallery(g.gallery_id)} className="text-red-400 hover:text-red-300">Del</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : activeTab === 'artifact' ? (
+              <>
+                <form onSubmit={handleArtifactSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Select Gallery</label>
+                    <select name="gallery_id" value={artifactData.gallery_id} onChange={handleArtifactChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" required>
+                      <option value="">-- Select Gallery --</option>
+                      {galleries.map(g => <option key={g.gallery_id} value={g.gallery_id} className="bg-purple-900">{g.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Category</label>
+                      <input type="text" name="category" value={artifactData.category} onChange={handleArtifactChange} placeholder="Manuscript" className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" required />
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Period</label>
+                      <input type="text" name="historical_period" value={artifactData.historical_period} onChange={handleArtifactChange} placeholder="Chola Dynasty" className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" required />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Material</label>
+                      <input type="text" name="material" value={artifactData.material} onChange={handleArtifactChange} placeholder="Gold" className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" required />
+                    </div>
+                    <div>
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Condition</label>
+                      <select name="condition_status" value={artifactData.condition_status} onChange={handleArtifactChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        {['Excellent', 'Good', 'Restored', 'Needs Restoration', 'Damaged'].map(s => <option key={s} value={s} className="bg-purple-900">{s}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Audio Guide ID (Optional)</label>
+                    <input type="number" name="audio_guide_id" value={artifactData.audio_guide_id} onChange={handleArtifactChange} className="w-full px-3 py-2 rounded bg-purple-800/50 border border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white font-bold rounded shadow transition-all">
+                      {editingArtifactId ? 'Update Artifact' : 'Add Artifact'}
+                    </button>
+                    {editingArtifactId && <button type="button" onClick={() => { setEditingArtifactId(null); setArtifactData({ gallery_id: '', historical_period: '', category: '', material: '', condition_status: 'Excellent', audio_guide_id: '' }) }} className="px-4 py-3 bg-gray-600 text-white rounded hover:bg-gray-500">Cancel</button>}
+                  </div>
+                </form>
+
+                {/* Artifact List Table */}
+                <div className="mt-8 overflow-x-auto">
+                  <h4 className="text-xl font-bold mb-4 text-purple-200">Artifact Inventary</h4>
+                  <table className="w-full text-left text-sm text-purple-100">
+                    <thead className="text-xs uppercase bg-purple-800 text-purple-300">
+                      <tr>
+                        <th className="px-4 py-2">ID</th>
+                        <th className="px-4 py-2">Category</th>
+                        <th className="px-4 py-2">Period</th>
+                        <th className="px-4 py-2">Material</th>
+                        <th className="px-4 py-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {artifacts.map(a => (
+                        <tr key={a.artifact_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+                          <td className="px-4 py-2">{a.artifact_id}</td>
+                          <td className="px-4 py-2 font-bold">{a.category}</td>
+                          <td className="px-4 py-2">{a.historical_period}</td>
+                          <td className="px-4 py-2">{a.material}</td>
+                          <td className="px-4 py-2 flex gap-2">
+                            <button onClick={() => startEditArtifact(a)} className="text-blue-400 hover:text-blue-300">Edit</button>
+                            <button onClick={() => handleDeleteArtifact(a.artifact_id)} className="text-red-400 hover:text-red-300">Del</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
           </div>
 
           {/* Right Side - Analytics (Span 8) */}
           <div className="lg:col-span-8 grid gap-8 content-start">
-            {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {/* Card 1 */}
               <div className="bg-purple-800/40 p-6 rounded-xl border border-purple-700/50 backdrop-blur-sm hover:bg-purple-800/60 transition">
