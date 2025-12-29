@@ -28,6 +28,8 @@ app.include_router(finance_router)
 app.include_router(tour_router)
 app.include_router(gallery_router)
 app.include_router(artifact_router)
+from analytics_routes import router as analytics_router
+app.include_router(analytics_router)
 
 @app.get("/")
 def read_root():

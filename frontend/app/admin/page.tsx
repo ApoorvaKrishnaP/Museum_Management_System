@@ -8,6 +8,49 @@ const COUNTRIES = ["India", "USA", "UK", "France", "Germany", "Japan", "China", 
 const LANGUAGES = ["English", "Hindi", "Spanish", "French", "German", "Japanese", "Mandarin", "Other"];
 const TICKET_TYPES = ["Standard", "VIP", "Student"];
 
+const DonutChart = ({ data }: { data: { condition_status: string, count: number }[] }) => {
+  const total = data.reduce((acc, curr) => acc + curr.count, 0);
+  let currentPercent = 0;
+
+  const getColor = (status: string) => {
+    const s = status.toLowerCase();
+    if (s.includes('good') || s.includes('excellent')) return '#22c55e'; // green-500
+    if (s.includes('restored')) return '#3b82f6'; // blue-500
+    if (s.includes('repair') || s.includes('damaged')) return '#ef4444'; // red-500
+    return '#a855f7'; // purple-500
+  };
+
+  const gradientString = data.length > 0 ? data.map(item => {
+    const start = currentPercent;
+    const percent = (item.count / total) * 100;
+    currentPercent += percent;
+    return `${getColor(item.condition_status)} ${start}% ${currentPercent}%`;
+  }).join(', ') : '#4b5563 0% 100%';
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-48 h-48 rounded-full shadow-xl" style={{ background: `conic-gradient(${gradientString})` }}>
+        {/* Inner Circle for Donut */}
+        <div className="absolute inset-3 bg-purple-950 rounded-full flex flex-col items-center justify-center border-4 border-purple-900/50">
+          <span className="text-3xl font-black text-white">{total}</span>
+          <span className="text-xs text-purple-300 uppercase tracking-widest">Artifacts</span>
+        </div>
+      </div>
+      <div className="mt-6 w-full grid grid-cols-2 gap-3 text-xs">
+        {data.map((d, i) => (
+          <div key={i} className="flex items-center gap-2 bg-purple-900/50 p-2 rounded border border-purple-800">
+            <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: getColor(d.condition_status) }}></div>
+            <div className="flex flex-col">
+              <span className="text-purple-200 font-medium">{d.condition_status}</span>
+              <span className="text-white font-bold">{d.count} items</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +108,9 @@ export default function AdminPage() {
   const [editingVisitorId, setEditingVisitorId] = useState<number | null>(null);
   const [editingStaffId, setEditingStaffId] = useState<number | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
+
+  // Analytics State
+  const [artifactAnalytics, setArtifactAnalytics] = useState<any[]>([]);
 
   // --- SEARCH HANDLERS ---
   const searchTours = () => {
@@ -226,6 +272,16 @@ export default function AdminPage() {
         .catch(err => console.error("Failed to load galleries for dropdown", err));
     }
   }, [activeTab]);
+
+  // Fetch Analytics on Mount
+  useEffect(() => {
+    fetch('http://localhost:8000/api/analytics/artifact-status')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setArtifactAnalytics(data);
+      })
+      .catch(err => console.error("Failed to fetch analytics", err));
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -1483,6 +1539,12 @@ export default function AdminPage() {
                 <div className="flex justify-between mt-4 text-xs text-purple-300">
                   <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
                 </div>
+              </div>
+
+              {/* Artifact Analytics Chart */}
+              <div className="bg-purple-900/40 p-8 rounded-xl border border-purple-700/50 backdrop-blur-sm md:col-span-2 lg:col-span-1">
+                <h3 className="text-xl font-bold mb-6 text-white border-b border-purple-700 pb-2">🏺 Artifact Conditions</h3>
+                <DonutChart data={artifactAnalytics} />
               </div>
             </div>
           </div>
