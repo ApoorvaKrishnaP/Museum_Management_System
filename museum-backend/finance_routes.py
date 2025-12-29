@@ -83,7 +83,7 @@ def create_transaction(finance: FinanceCreate):
         if "foreign key constraint" in str(e).lower():
              raise HTTPException(status_code=400, detail="Invalid Visitor ID.")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
+    
 @router.get("/api/finance", status_code=200)
 def get_finance(
     start_date: Optional[date] = None,
