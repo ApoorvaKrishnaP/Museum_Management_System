@@ -83,7 +83,10 @@ def create_transaction(finance: FinanceCreate):
         if "foreign key constraint" in str(e).lower():
              raise HTTPException(status_code=400, detail="Invalid Visitor ID.")
         raise HTTPException(status_code=500, detail=str(e))
-    
+    finally:
+        cur.close()
+        conn.close()
+
 @router.get("/api/finance", status_code=200)
 def get_finance(
     start_date: Optional[date] = None,
@@ -106,7 +109,7 @@ def get_finance(
         if payment_method:
             conditions.append("payment_method = %s")
             params.append(payment_method)
-            
+                
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         
@@ -141,6 +144,23 @@ def update_transaction(transaction_id: int, finance: FinanceCreate):
         ))
         conn.commit()
         return {"message": "Transaction updated successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+@router.delete("/api/finance/{transaction_id}", status_code=200)
+def delete_transaction(transaction_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM revenue_finance WHERE transaction_id = %s RETURNING transaction_id", (transaction_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        conn.commit()
+        return {"message": "Transaction deleted successfully"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

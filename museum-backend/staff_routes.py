@@ -88,7 +88,10 @@ def create_staff(staff: StaffCreate):
         if "duplicate key" in str(e):
              raise HTTPException(status_code=400, detail="Staff with this email or contact already exists.")
         raise HTTPException(status_code=500, detail=str(e))
-    
+    finally:
+        cur.close()
+        conn.close()
+
 @router.get("/api/staff", status_code=200)
 def get_staff(
     role: Optional[str] = None,
