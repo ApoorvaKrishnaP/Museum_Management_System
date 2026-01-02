@@ -111,6 +111,7 @@ export default function AdminPage() {
 
   // Analytics State
   const [artifactAnalytics, setArtifactAnalytics] = useState<any[]>([]);
+  const [ticketSales, setTicketSales] = useState<any[]>([]);
 
   // --- SEARCH HANDLERS ---
   const searchTours = () => {
@@ -275,12 +276,21 @@ export default function AdminPage() {
 
   // Fetch Analytics on Mount
   useEffect(() => {
+    // Artifact Status
     fetch('http://localhost:8000/api/analytics/artifact-status')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setArtifactAnalytics(data);
       })
       .catch(err => console.error("Failed to fetch analytics", err));
+
+    // Ticket Sales
+    fetch('http://localhost:8000/api/analytics/ticket-sales')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setTicketSales(data);
+      })
+      .catch(err => console.error("Failed to fetch ticket sales", err));
   }, []);
 
   const handleLogout = () => {
@@ -1137,13 +1147,16 @@ export default function AdminPage() {
                   </div>
 
                   <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Guide</label>
-                    <select name="guide_id" value={tourData.guide_id} onChange={handleTourChange} className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}>
-                      <option value="">-- Select Guide --</option>
-                      {guides.map(g => (
-                        <option key={g.staff_id} value={g.staff_id} className="bg-purple-900">{g.name}</option>
-                      ))}
-                    </select>
+                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Guide (ID)</label>
+                    <input
+                      type="text"
+                      name="guide_id"
+                      value={tourData.guide_id}
+                      onChange={handleTourChange}
+                      placeholder="Enter Guide ID"
+                      className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+                      required
+                    />
                     {tourErrors.guide_id && <p className="text-red-400 text-xs mt-1">{tourErrors.guide_id}</p>}
                   </div>
 
@@ -1508,24 +1521,29 @@ export default function AdminPage() {
             {/* Graphs Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="bg-purple-900/40 p-8 rounded-xl border border-purple-700/50 backdrop-blur-sm">
-                <h3 className="text-xl font-bold mb-6 text-white">Visitors by Category</h3>
+                <h3 className="text-xl font-bold mb-6 text-white">Ticket Sales by Type</h3>
                 <div className="space-y-4">
-                  {[
-                    { label: 'Students', val: '35%', color: 'bg-blue-500' },
-                    { label: 'Adults', val: '40%', color: 'bg-green-500' },
-                    { label: 'Seniors', val: '15%', color: 'bg-yellow-500' },
-                    { label: 'VIP', val: '10%', color: 'bg-pink-500' },
-                  ].map(item => (
-                    <div key={item.label}>
-                      <div className="flex justify-between text-sm mb-1 text-purple-200">
-                        <span>{item.label}</span>
-                        <span>{item.val}</span>
+                  {['Student', 'Standard', 'VIP'].map(type => {
+                    const item = ticketSales.find(t => t.ticket_type === type) || { count: 0 };
+                    const totalTickets = ticketSales.reduce((sum, t) => sum + t.count, 0) || 1; // Prevent div by zero
+                    const percent = Math.round((item.count / totalTickets) * 100);
+
+                    let color = 'bg-blue-500';
+                    if (type === 'Standard') color = 'bg-green-500';
+                    if (type === 'VIP') color = 'bg-yellow-500';
+
+                    return (
+                      <div key={type}>
+                        <div className="flex justify-between text-sm mb-1 text-purple-200">
+                          <span>{type}</span>
+                          <span>{item.count} sold ({percent}%)</span>
+                        </div>
+                        <div className="h-4 bg-purple-800 rounded-full overflow-hidden">
+                          <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${percent}%` }}></div>
+                        </div>
                       </div>
-                      <div className="h-2 bg-purple-800 rounded-full overflow-hidden">
-                        <div className={`h-full ${item.color}`} style={{ width: item.val }}></div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

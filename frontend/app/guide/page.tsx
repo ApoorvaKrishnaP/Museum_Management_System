@@ -7,6 +7,12 @@ import Link from 'next/link';
 export default function GuidePage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    toursToday: 0,
+    visitors: 0,
+    artifacts: 0,
+    galleries: 0
+  });
   const router = useRouter();
 
   useEffect(() => {
@@ -24,7 +30,51 @@ export default function GuidePage() {
     }
 
     setUser(userData);
-    setLoading(false);
+
+    // Fetch Stats
+    const fetchStats = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Personal Stats: Tours Today 
+        // First get staff ID
+        const staffRes = await fetch(`http://localhost:8000/api/staff?email=${userData.email}`);
+        const staffData = await staffRes.json();
+        let toursCount = 0;
+
+        if (Array.isArray(staffData) && staffData.length > 0) {
+          const staffId = staffData[0].staff_id;
+          const toursRes = await fetch(`http://localhost:8000/api/tours?guide_id=${staffId}&date=${today}`);
+          const toursData = await toursRes.json();
+          if (Array.isArray(toursData)) toursCount = toursData.length;
+        }
+
+        // 2. Global Stats
+        const [visRes, artRes, galRes] = await Promise.all([
+          fetch('http://localhost:8000/api/visitors'),
+          fetch('http://localhost:8000/api/artifacts'),
+          fetch('http://localhost:8000/api/galleries')
+        ]);
+
+        const visitors = await visRes.json();
+        const artifacts = await artRes.json();
+        const galleries = await galRes.json();
+
+        setStats({
+          toursToday: toursCount,
+          visitors: Array.isArray(visitors) ? visitors.length : 0,
+          artifacts: Array.isArray(artifacts) ? artifacts.length : 0,
+          galleries: Array.isArray(galleries) ? galleries.length : 0
+        });
+
+      } catch (error) {
+        console.error("Error loading stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
   }, [router]);
 
   const handleLogout = () => {
@@ -99,20 +149,20 @@ export default function GuidePage() {
           <h3 className="text-2xl font-bold mb-6">Quick Stats</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="text-center">
-              <div className="text-4xl font-bold text-yellow-300">12</div>
-              <p className="text-green-100 mt-2">Tours Today</p>
+              <div className="text-4xl font-bold text-yellow-300">{stats.toursToday}</div>
+              <p className="text-green-100 mt-2">Your Tours Today</p>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-yellow-300">156</div>
-              <p className="text-green-100 mt-2">Visitors</p>
+              <div className="text-4xl font-bold text-yellow-300">{stats.visitors}</div>
+              <p className="text-green-100 mt-2">Total Visitors</p>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-yellow-300">48</div>
-              <p className="text-green-100 mt-2">Artifacts</p>
+              <div className="text-4xl font-bold text-yellow-300">{stats.artifacts}</div>
+              <p className="text-green-100 mt-2">Total Artifacts</p>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-yellow-300">5</div>
-              <p className="text-green-100 mt-2">Galleries</p>
+              <div className="text-4xl font-bold text-yellow-300">{stats.galleries}</div>
+              <p className="text-green-100 mt-2">Total Galleries</p>
             </div>
           </div>
         </div>

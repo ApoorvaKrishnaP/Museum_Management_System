@@ -13,14 +13,45 @@ const MOCK_TOURS = [
 ];
 
 export default function GuideToursPage() {
-    const [tours, setTours] = useState(MOCK_TOURS);
+    const [tours, setTours] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
-        // Basic auth check
-        const savedUser = localStorage.getItem('user');
-        if (!savedUser) router.push('/');
+        const fetchMyTours = async () => {
+            const savedUser = localStorage.getItem('user');
+            if (!savedUser) {
+                router.push('/');
+                return;
+            }
+            const user = JSON.parse(savedUser);
+
+            try {
+                // 1. Get Staff details using email
+                const staffRes = await fetch(`http://localhost:8000/api/staff?email=${user.email}`);
+                const staffData = await staffRes.json();
+
+                if (Array.isArray(staffData) && staffData.length > 0) {
+                    const myStaffId = staffData[0].staff_id;
+
+                    // 2. Fetch tours for this staff ID
+                    const toursRes = await fetch(`http://localhost:8000/api/tours?guide_id=${myStaffId}`);
+                    const toursData = await toursRes.json();
+                    setTours(toursData);
+                } else {
+                    console.error("Staff profile not found for email:", user.email);
+                }
+            } catch (error) {
+                console.error("Error loading tours:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchMyTours();
     }, [router]);
+
+    if (loading) return <div className="min-h-screen bg-green-900 text-white flex items-center justify-center">Loading your schedule...</div>;
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-green-900 to-green-800 text-white font-sans">
@@ -49,34 +80,37 @@ export default function GuideToursPage() {
                                     <th className="py-3 px-4">Size</th>
                                     <th className="py-3 px-4">Language</th>
                                     <th className="py-3 px-4">Status</th>
-                                    <th className="py-3 px-4">Visitor ID</th>
+                                    <th className="py-3 px-4">Visitor IDs</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {tours.map((tour) => (
-                                    <tr key={tour.id} className="hover:bg-green-700/50 transition border-b border-green-700/50 last:border-0">
-                                        <td className="py-4 px-4">{tour.date}</td>
-                                        <td className="py-4 px-4 font-mono text-yellow-300">{tour.time}</td>
-                                        <td className="py-4 px-4 font-semibold">{tour.visitor_group}</td>
-                                        <td className="py-4 px-4">{tour.group_size}</td>
-                                        <td className="py-4 px-4">
-                                            <span className="px-2 py-1 bg-green-900 rounded text-xs border border-green-600">
-                                                {tour.language}
-                                            </span>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider
+                                {tours.length === 0 ? (
+                                    <tr><td colSpan={7} className="text-center py-8 text-green-300">No scheduled tours found.</td></tr>
+                                ) : (
+                                    tours.map((tour) => (
+                                        <tr key={tour.tour_id} className="hover:bg-green-700/50 transition border-b border-green-700/50 last:border-0">
+                                            <td className="py-4 px-4">{tour.tour_date}</td>
+                                            <td className="py-4 px-4 font-mono text-yellow-300">{tour.tour_time}</td>
+                                            <td className="py-4 px-4 font-semibold">{tour.visitor_group_name}</td>
+                                            <td className="py-4 px-4">{tour.group_size}</td>
+                                            <td className="py-4 px-4">
+                                                <span className="px-2 py-1 bg-green-900 rounded text-xs border border-green-600">
+                                                    {tour.language}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider
                         ${tour.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50' :
-                                                    tour.status === 'Completed' ? 'bg-green-500/20 text-green-300 border border-green-500/50' :
-                                                        'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'}`}>
-                                                {tour.status}
-                                            </span>
-                                        </td>
-                                        <td className="py-4 px-4 font-mono text-green-200">
-                                            #{tour.visitor_id}
-                                        </td>
-                                    </tr>
-                                ))}
+                                                        tour.status === 'Completed' ? 'bg-green-500/20 text-green-300 border border-green-500/50' :
+                                                            'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'}`}>
+                                                    {tour.status}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 px-4 font-mono text-green-200">
+                                                {Array.isArray(tour.visitor_ids) ? tour.visitor_ids.join(', ') : tour.visitor_ids}
+                                            </td>
+                                        </tr>
+                                    )))}
                             </tbody>
                         </table>
                     </div>

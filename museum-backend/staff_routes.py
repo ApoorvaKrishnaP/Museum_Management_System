@@ -95,7 +95,8 @@ def create_staff(staff: StaffCreate):
 @router.get("/api/staff", status_code=200)
 def get_staff(
     role: Optional[str] = None,
-    name: Optional[str] = None
+    name: Optional[str] = None,
+    email: Optional[str] = None
 ):
     conn = get_conn()
     cur = conn.cursor()
@@ -110,6 +111,9 @@ def get_staff(
         if name:
             conditions.append("name ILIKE %s")
             params.append(f"%{name}%")
+        if email:
+            conditions.append("email = %s")
+            params.append(email)
             
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
