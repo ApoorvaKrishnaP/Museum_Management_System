@@ -30,6 +30,8 @@ app.include_router(gallery_router)
 app.include_router(artifact_router)
 from analytics_routes import router as analytics_router
 app.include_router(analytics_router)
+from feedback_routes import router as feedback_router
+app.include_router(feedback_router)
 
 @app.get("/")
 def read_root():

@@ -36,17 +36,134 @@ const DonutChart = ({ data }: { data: { condition_status: string, count: number 
           <span className="text-xs text-purple-300 uppercase tracking-widest">Artifacts</span>
         </div>
       </div>
-      <div className="mt-6 w-full grid grid-cols-2 gap-3 text-xs">
+      <div className="mt-6 w-full flex flex-wrap justify-center gap-4 text-xs">
         {data.map((d, i) => (
-          <div key={i} className="flex items-center gap-2 bg-purple-900/50 p-2 rounded border border-purple-800">
+          <div key={i} className="flex items-center gap-2 bg-purple-900/50 px-4 py-2 rounded-full border border-purple-800 shadow-sm">
             <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: getColor(d.condition_status) }}></div>
-            <div className="flex flex-col">
+            <div className="flex flex-col items-start">
               <span className="text-purple-200 font-medium">{d.condition_status}</span>
-              <span className="text-white font-bold">{d.count} items</span>
+              <span className="text-white font-bold">{d.count}</span>
             </div>
           </div>
         ))}
       </div>
+    </div>
+  );
+};
+
+const FeedbackBoard = () => {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/feedback/analysis')
+      .then(res => res.json())
+      .then(data => setItems(data))
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-white p-4">Analysing feedback...</div>;
+
+  return (
+    <div className="grid grid-cols-1 gap-6">
+      {items.length === 0 && <p className="text-gray-400">No actionable feedback found.</p>}
+
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className={`p-6 rounded-xl border-l-8 shadow-lg bg-purple-800/40 backdrop-blur-md transition hover:scale-[1.01] ${item.priority === 'high' ? 'border-red-500' :
+            item.priority === 'medium' ? 'border-yellow-500' : 'border-blue-500'
+            }`}
+        >
+          <div className="flex justify-between items-start mb-3">
+            <div className="flex items-center gap-3">
+              <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${item.priority === 'high' ? 'bg-red-500/20 text-red-300' :
+                item.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-blue-500/20 text-blue-300'
+                }`}>
+                {item.priority} Priority
+              </span>
+              <span className="text-xs text-purple-300 uppercase font-bold border border-purple-600 px-2 py-0.5 rounded">
+                {item.category}
+              </span>
+            </div>
+          </div>
+
+          <p className="text-lg font-medium text-white mb-4 italic">"{item.text}"</p>
+
+          <div className="bg-black/20 p-4 rounded-lg">
+            <h4 className="text-sm font-bold text-purple-200 mb-2 flex items-center gap-2">
+              🚀 Recommended Actions
+            </h4>
+            <ul className="space-y-2">
+              {item.steps && item.steps.map((step: string, idx: number) => (
+                <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
+                  <span className="text-green-400 mt-0.5">✔</span>
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const FeedbackBoardGrid = () => {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/feedback/analysis')
+      .then(res => res.json())
+      .then(data => setItems(data))
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-white p-4">Analysing feedback...</div>;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {items.length === 0 && <p className="text-gray-400 col-span-4 text-center">No actionable feedback found.</p>}
+
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className={`relative p-5 rounded-xl border-t-4 shadow-xl bg-purple-800/60 backdrop-blur-md flex flex-col h-full hover:transform hover:-translate-y-1 transition duration-300 ${item.priority === 'high' ? 'border-red-500 shadow-red-900/20' :
+            item.priority === 'medium' ? 'border-yellow-500 shadow-yellow-900/20' : 'border-blue-500 shadow-blue-900/20'
+            }`}
+        >
+          <div className="flex justify-between items-center mb-3">
+            <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${item.priority === 'high' ? 'bg-red-500 text-white' :
+              item.priority === 'medium' ? 'bg-yellow-500 text-black' : 'bg-blue-500 text-white'
+              }`}>
+              {item.priority}
+            </span>
+            <span className="text-[10px] text-purple-200 uppercase tracking-widest bg-purple-900/50 px-2 py-1 rounded">
+              {item.category}
+            </span>
+          </div>
+
+          <p className="text-sm font-medium text-white mb-4 italic flex-grow">"{item.text}"</p>
+
+          <div className="bg-black/20 p-3 rounded-lg mt-auto">
+            <h4 className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">
+              Steps to Fix:
+            </h4>
+            <ul className="space-y-1">
+              {item.steps && item.steps.slice(0, 3).map((step: string, idx: number) => (
+                <li key={idx} className="flex items-start gap-2 text-xs text-gray-300">
+                  <span className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.priority === 'high' ? 'bg-red-400' : 'bg-green-400'
+                    }`}></span>
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
@@ -89,7 +206,7 @@ export default function AdminPage() {
   });
   const [editingArtifactId, setEditingArtifactId] = useState<number | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'visitor' | 'staff' | 'finance' | 'tours' | 'gallery' | 'artifact'>('visitor');
+  const [activeTab, setActiveTab] = useState<'visitor' | 'staff' | 'finance' | 'tours' | 'gallery' | 'artifact' | 'feedback'>('visitor');
 
   // --- FILTER STATE ---
   const [tourSearch, setTourSearch] = useState({ type: 'Date', date: '', guide_id: '', status: 'Scheduled' });
@@ -734,7 +851,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-900 to-purple-800 text-white font-sans">
+    <div className="min-h-screen bg-neutral-950 text-white font-sans">
       {/* Navigation */}
       <nav className="bg-purple-950 shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
@@ -798,7 +915,7 @@ export default function AdminPage() {
                 onClick={() => setActiveTab('artifact')}
                 className={`flex-1 py-2 rounded-md font-bold transition-all text-sm ${activeTab === 'artifact' ? 'bg-purple-600 text-white shadow' : 'text-purple-300 hover:text-white'}`}
               >
-                Artifact
+                Artifacts
               </button>
             </div>
 
@@ -1560,15 +1677,26 @@ export default function AdminPage() {
               </div>
 
               {/* Artifact Analytics Chart */}
-              <div className="bg-purple-900/40 p-8 rounded-xl border border-purple-700/50 backdrop-blur-sm md:col-span-2 lg:col-span-1">
-                <h3 className="text-xl font-bold mb-6 text-white border-b border-purple-700 pb-2">🏺 Artifact Conditions</h3>
+              {/* Artifact Analytics Chart - Centered */}
+              <div className="bg-purple-900/40 p-8 rounded-xl border border-purple-700/50 backdrop-blur-sm md:col-span-2 w-full max-w-3xl mx-auto">
+                <h3 className="text-xl font-bold mb-6 text-white border-b border-purple-700 pb-2 text-center">🏺 Artifact Conditions</h3>
                 <DonutChart data={artifactAnalytics} />
               </div>
             </div>
           </div>
 
+          {/* NEW AI FEEDBACK SECTION - FULL WIDTH */}
+          <div className="mt-12 col-span-1 lg:col-span-12">
+            <h2 className="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-red-400">
+              🚨 Actionable AI Insights
+            </h2>
+            <div className="bg-purple-900/30 p-6 rounded-2xl border border-purple-700/50">
+              <FeedbackBoardGrid />
+            </div>
+          </div>
+
         </div>
-      </main >
-    </div >
+      </main>
+    </div>
   );
 }
