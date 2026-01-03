@@ -141,3 +141,70 @@ def delete_artifact(artifact_id: int):
     finally:
         cur.close()
         conn.close()
+
+@router.get("/api/artifacts/enriched", status_code=200)
+def get_enriched_artifacts():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Fetch ONLY from artefact_media as requested
+        query = "SELECT * FROM artefact_media ORDER BY artifact_id, media_type"
+        cur.execute(query)
+        rows = cur.fetchall()
+        
+        artifacts_map = {}
+        
+        for row in rows:
+            aid = row['artifact_id']
+            if aid not in artifacts_map:
+                # Determine Gallery Name dynamically based on description/name
+                name = row['artifact_name']
+                desc = row['artifact_description'] or ""
+                
+                gallery_name = "General Exhibition"
+                if "Vase" in name or "Song" in desc:
+                    gallery_name = "Imperial Ceramics Gallery"
+                elif "Book" in name or "Kells" in desc:
+                    gallery_name = "Medieval Manuscripts Hall"
+                elif "Sword" in name or "Tipu" in desc:
+                    gallery_name = "Royal Armory"
+                elif "Textile" in name or "Chakla" in desc:
+                    gallery_name = "Cultural Textiles Exhibit"
+                
+                artifacts_map[aid] = {
+                    "artifact_id": aid,
+                    "name": name, 
+                    "gallery_name": gallery_name,
+                    "historical_period": "Various", # Placeholder since we are ignoring Artifact_Information
+                    "category": "Artifact",
+                    "material": "Mixed Media",
+                    "condition_status": "Displayed",
+                    "description": "", # Will fill below
+                    "image_url": None,
+                    "audio_url": None
+                }
+            
+            # Fix Google Cloud Storage URLs to be public accessible
+            url = row['media_url']
+            if url and "storage.cloud.google.com" in url:
+                url = url.replace("storage.cloud.google.com", "storage.googleapis.com")
+            
+            if row['media_type'] == 'image':
+                artifacts_map[aid]['image_url'] = url
+                # Use description from the image row as primary description if available
+                if row['artifact_description']:
+                    artifacts_map[aid]['description'] = row['artifact_description']
+            elif row['media_type'] == 'audio':
+                artifacts_map[aid]['audio_url'] = url
+                # If description was empty (e.g. image row had none), try audio row
+                if not artifacts_map[aid]['description'] and row['artifact_description']:
+                     artifacts_map[aid]['description'] = row['artifact_description']
+
+        return list(artifacts_map.values())
+
+    except Exception as e:
+        print(f"Error fetching enriched artifacts: {e}") 
+        return []
+    finally:
+        cur.close()
+        conn.close()

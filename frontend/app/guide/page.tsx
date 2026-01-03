@@ -141,6 +141,20 @@ export default function GuidePage() {
             </Link>
           </div>
 
+          {/* Artifact Information */}
+          <div className="bg-green-700 p-8 rounded-lg shadow-lg hover:shadow-xl transition transform hover:scale-105 md:col-span-2">
+            <div className="text-6xl mb-4">🏺</div>
+            <h3 className="text-2xl font-bold mb-4">Artifact Information</h3>
+            <p className="text-green-100 mb-6">
+              Explore detailed information about museum artifacts, including audio guides, history, and gallery locations.
+            </p>
+            <Link href="/guide/artifacts">
+              <button className="w-full px-4 py-3 bg-blue-500 text-white font-bold rounded hover:bg-blue-600 transition">
+                View Artifacts
+              </button>
+            </Link>
+          </div>
+
 
         </div>
 
