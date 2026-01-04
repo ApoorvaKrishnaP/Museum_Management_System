@@ -156,49 +156,49 @@ def get_enriched_artifacts():
         
         for row in rows:
             aid = row['artifact_id']
-            if aid not in artifacts_map:
-                # Determine Gallery Name dynamically based on description/name
-                name = row['artifact_name']
-                desc = row['artifact_description'] or ""
-                
-                gallery_name = "General Exhibition"
-                if "Vase" in name or "Song" in desc:
-                    gallery_name = "Imperial Ceramics Gallery"
-                elif "Book" in name or "Kells" in desc:
-                    gallery_name = "Medieval Manuscripts Hall"
-                elif "Sword" in name or "Tipu" in desc:
-                    gallery_name = "Royal Armory"
-                elif "Textile" in name or "Chakla" in desc:
-                    gallery_name = "Cultural Textiles Exhibit"
-                
-                artifacts_map[aid] = {
-                    "artifact_id": aid,
-                    "name": name, 
-                    "gallery_name": gallery_name,
-                    "historical_period": "Various", # Placeholder since we are ignoring Artifact_Information
-                    "category": "Artifact",
-                    "material": "Mixed Media",
-                    "condition_status": "Displayed",
-                    "description": "", # Will fill below
-                    "image_url": None,
-                    "audio_url": None
-                }
             
             # Fix Google Cloud Storage URLs to be public accessible
             url = row['media_url']
             if url and "storage.cloud.google.com" in url:
                 url = url.replace("storage.cloud.google.com", "storage.googleapis.com")
+
+            if aid not in artifacts_map:
+                name = row['artifact_name']
+                # Determine Gallery Name and Content dynamically
+                gallery_name = "General Exhibition"
+                desc = row['artifact_description'] or ""
+                
+                # Check for Specific Artifacts to inject User-Requested Content
+                if "Vase" in name:
+                    gallery_name = "Imperial Ceramics Gallery"
+                    desc = "This elegant Song Dynasty Meiping vase exemplifies masterful ceramic artistry with its slender form and delicate incised floral patterns, showcasing the refinement of Yaozhou ware. The sharp, vigorous lines carved into the surface create dynamic, lifelike scrolling vines, demonstrating high technical skill and aesthetic balance. Its sophisticated design and pristine condition make it a significant piece reflecting imperial beauty and classical Chinese ceramic tradition."
+                elif "Book" in name or "Kells" in name:
+                    gallery_name = "Medieval Manuscripts Hall"
+                    desc = "Book of Kells is a famous illuminated manuscript at Trinity College Library, Dublin: it's an early medieval gospel book (c. 800 AD) on vellum, renowned for its stunning, intricate Celtic knotwork, vibrant illustrations (like the famous Chi Rho page), and complex decorative initials, showcasing incredible artistry and devotion, a testament to early Irish monastic culture, with its pages offering a glimpse into early Christian iconography and intricate calligraphy, making it a treasure of Western art and literature."
+                elif "Sword" in name or "Weapon" in name:
+                    gallery_name = "Royal Armory"
+                    desc = "This is a striking weapon on display is the personal sword of Tipu Sultan, the 18th-century ruler of Mysore. This exceptional sword features a watered steel blade, ornamented with fine floral motifs and inscriptions in gold that include Quranic verses and the name of its owner and his capital city, Srirangapatnam. The hilt, known as a Delhishahi hilt, is also heavily damascened in gold with creeper and floral designs and finished with a circular disc pommel and a small knuckle-guard. The weapon is housed in a wooden sheath covered in rich maroon velvet, showcasing it not just as a tool of war, but as a significant artifact of royal power, artistry, and a symbol of resistance against the British in Indian history."
+                elif "Textile" in name:
+                    gallery_name = "Cultural Textiles Exhibit"
+                    desc = "The embroidered Indian Chakla is a decorative, often square, textile from regions like Gujarat and Rajasthan, traditionally used for special occasions like weddings, as a wall hanging, for wrapping gifts (rumal), or as a small decorative cloth, featuring vibrant hand-embroidery, mirror work (Shisha), and colorful threads, reflecting the rich traditions of communities like the Rabari or Ahir."
+                
+                artifacts_map[aid] = {
+                    "artifact_id": aid,
+                    "name": name, 
+                    "gallery_name": gallery_name,
+                    "historical_period": "Various", 
+                    "category": "Artifact",
+                    "material": "Mixed Media",
+                    "condition_status": "Displayed",
+                    "description": desc,
+                    "image_url": None,
+                    "audio_url": None
+                }
             
             if row['media_type'] == 'image':
                 artifacts_map[aid]['image_url'] = url
-                # Use description from the image row as primary description if available
-                if row['artifact_description']:
-                    artifacts_map[aid]['description'] = row['artifact_description']
             elif row['media_type'] == 'audio':
                 artifacts_map[aid]['audio_url'] = url
-                # If description was empty (e.g. image row had none), try audio row
-                if not artifacts_map[aid]['description'] and row['artifact_description']:
-                     artifacts_map[aid]['description'] = row['artifact_description']
 
         return list(artifacts_map.values())
 

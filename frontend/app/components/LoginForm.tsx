@@ -11,7 +11,7 @@ interface LoginFormProps {
 export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
   const [formData, setFormData] = useState({
     email: '',
-    role: 'guide',
+    role: 'visitor', // Default to visitor as per common use case? Or keep 'guide'. User said "have dropdown... for login". Default 'visitor' seems friendlier for public.
     password: '',
   });
   const [errors, setErrors] = useState<string[]>([]);
@@ -24,43 +24,64 @@ export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
       ...prev,
       [name]: value,
     }));
-    setErrors([]); // Clear errors on input change
+    setErrors([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setApiError('');
 
-    // Validate form inputs
-    const validation = validateLogin(formData.email, formData.password);
-    if (!validation.isValid) {
-      setErrors(validation.errors);
+    // Basic validation
+    // For visitor, 'password' field holds the ID.
+    if (!formData.email || !formData.password) {
+      setErrors(["Please fill in all fields"]);
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      let response;
+      let body;
+      let url;
+
+      if (formData.role === 'visitor') {
+        url = 'http://localhost:8000/api/visitors/login';
+        body = JSON.stringify({
+          email: formData.email,
+          visitor_id: parseInt(formData.password) // Reuse password field for ID
+        });
+      } else {
+        url = 'http://localhost:8000/api/auth/login';
+        body = JSON.stringify(formData);
+      }
+
+      response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: body,
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // Store user data in localStorage
-        localStorage.setItem('user', JSON.stringify(data.user));
-        onLoginSuccess(data.user);
-        setFormData({ email: '', role: 'guide', password: '' });
+        let userObj = data.user || data.visitor;
+        // Ensure role is set for redirection logic
+        if (formData.role === 'visitor') {
+          userObj = { ...userObj, role: 'visitor' };
+          // Visitor login usually returns 'visitor' object, standard login returns 'user'
+          localStorage.setItem('visitor_user', JSON.stringify(userObj)); // Keep this for existing visitor page logic
+        }
+
+        localStorage.setItem('user', JSON.stringify(userObj)); // Standard session
+        onLoginSuccess(userObj);
+
+        setFormData({ email: '', role: 'visitor', password: '' });
         onClose();
       } else {
         setApiError(data.detail || 'Login failed. Please check your credentials.');
       }
     } catch (error: any) {
-      setApiError(error.message || 'Network error. Please check your connection.');
+      setApiError(error.message || 'Network error.');
     } finally {
       setLoading(false);
     }
@@ -88,6 +109,20 @@ export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+          <select
+            name="role"
+            value={formData.role}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-blue-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 bg-blue-50"
+          >
+            <option value="visitor">Visitor</option>
+            <option value="guide">Guide</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
           <input
             type="email"
@@ -100,26 +135,15 @@ export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
-          >
-            <option value="guide">Guide</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {formData.role === 'visitor' ? 'Ticket ID (Visitor ID)' : 'Password'}
+          </label>
           <input
-            type="password"
+            type={formData.role === 'visitor' ? 'number' : 'password'}
             name="password"
             value={formData.password}
             onChange={handleChange}
-            placeholder="Your password"
+            placeholder={formData.role === 'visitor' ? 'e.g. 1042' : 'Your password'}
             className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
           />
         </div>

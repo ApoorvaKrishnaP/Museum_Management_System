@@ -78,6 +78,7 @@ def create_visitor(visitor: VisitorCreate):
         
         new_id = cur.fetchone()['visitor_id']
         conn.commit()
+        return {"visitor_id": new_id, "message": "Visitor registered successfully"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -140,6 +141,31 @@ def update_visitor(visitor_id: int, visitor: VisitorCreate):
         return {"message": "Visitor updated successfully"}
     except Exception as e:
         conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+# ... (previous code)
+
+class VisitorLogin(BaseModel):
+    email: EmailStr
+    visitor_id: int
+
+@router.post("/api/visitors/login", status_code=200)
+def login_visitor(login_data: VisitorLogin):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM visitor WHERE email = %s AND visitor_id = %s", (login_data.email.lower(), login_data.visitor_id))
+        visitor = cur.fetchone()
+        
+        if not visitor:
+             raise HTTPException(status_code=401, detail="Invalid credentials")
+             
+        # Convert row to dict manually if using RealDictCursor or just simple matching
+        # Assuming RealDictCursor is used based on create_visitor 'RETURNING' usage
+        return {"message": "Login successful", "visitor": visitor}
+        
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()

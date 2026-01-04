@@ -22,19 +22,19 @@ export default function Home() {
 
   const handleSignupSuccess = (userData: any) => {
     setUser(userData);
-    // Redirect based on role
-    if (userData.role === 'admin') {
-      router.push('/admin');
-    } else {
-      router.push('/guide');
-    }
+    redirectUser(userData);
   };
 
   const handleLoginSuccess = (userData: any) => {
     setUser(userData);
-    // Redirect based on role
+    redirectUser(userData);
+  };
+
+  const redirectUser = (userData: any) => {
     if (userData.role === 'admin') {
       router.push('/admin');
+    } else if (userData.role === 'visitor') {
+      router.push('/visitor');
     } else {
       router.push('/guide');
     }
@@ -43,6 +43,7 @@ export default function Home() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('visitor_user');
     setShowLogin(false);
     setShowSignup(false);
   };
@@ -105,22 +106,16 @@ export default function Home() {
             <p className="text-lg text-blue-100 mb-8">Ready to explore? Please log in or sign up to continue.</p>
             <div className="flex gap-6 justify-center flex-wrap">
               <button
-                onClick={() => {
-                  setShowLogin(true);
-                  setShowSignup(false);
-                }}
-                className="px-8 py-4 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition text-lg cursor-pointer"
+                onClick={() => { setShowLogin(true); setShowSignup(false); }}
+                className="px-8 py-4 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition text-lg cursor-pointer shadow-lg"
               >
                 Login
               </button>
               <button
-                onClick={() => {
-                  setShowSignup(true);
-                  setShowLogin(false);
-                }}
-                className="px-8 py-4 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition text-lg cursor-pointer"
+                onClick={() => { setShowSignup(true); setShowLogin(false); }}
+                className="px-8 py-4 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition text-lg cursor-pointer shadow-lg"
               >
-                Sign Up
+                Register
               </button>
             </div>
           </div>
@@ -142,6 +137,13 @@ export default function Home() {
                 <Link href="/admin">
                   <button className="px-8 py-4 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition text-lg">
                     Go to Admin Dashboard
+                  </button>
+                </Link>
+              )}
+              {user.role === 'visitor' && (
+                <Link href="/visitor">
+                  <button className="px-8 py-4 bg-sky-500 text-white font-bold rounded-lg hover:bg-sky-600 transition text-lg">
+                    Go to Visitor Dashboard
                   </button>
                 </Link>
               )}

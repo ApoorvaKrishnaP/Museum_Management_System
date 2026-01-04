@@ -33,25 +33,52 @@ export function SignupForm({ onSignupSuccess, onClose }: SignupFormProps) {
     setApiError('');
 
     // Validate form inputs
-    const validation = validateSignup(formData.name, formData.email, formData.password);
-    if (!validation.isValid) {
-      setErrors(validation.errors);
+    if (formData.role !== 'visitor') {
+      const validation = validateSignup(formData.name, formData.email, formData.password);
+      if (!validation.isValid) {
+        setErrors(validation.errors);
+        return;
+      }
+    }
+    // Basic check for visitor name/email
+    if (formData.role === 'visitor' && (!formData.name || !formData.email)) {
+      setErrors(["Name and Email are required"]);
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/auth/signup', {
+      let url = 'http://localhost:8000/api/auth/signup';
+      let body: any = formData;
+
+      if (formData.role === 'visitor') {
+        url = 'http://localhost:8000/api/visitors';
+        // Adapt formData to VisitorCreate schema
+        body = {
+          name: formData.name,
+          email: formData.email,
+          age_group: 'Adult',
+          nationality: 'General',
+          preferred_language: 'English',
+          ticket_type: 'Standard',
+          id_proof: 'Online',
+          contact: '0000000000',
+          // We ignore password for visitor creation as ID is auto-gen
+        };
+      }
+
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();
 
       if (response.ok) {
+        if (formData.role === 'visitor') {
+          alert(`Visitor Registered! Your Login Ticket ID is: ${data.visitor_id}`);
+        }
         onSignupSuccess(data);
         setFormData({ name: '', email: '', role: 'guide', password: '' });
         onClose();
@@ -118,20 +145,24 @@ export function SignupForm({ onSignupSuccess, onClose }: SignupFormProps) {
             onChange={handleChange}
             className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
           >
+            <option value="visitor">Visitor</option>
             <option value="guide">Guide</option>
             <option value="admin">Admin</option>
           </select>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {formData.role === 'visitor' ? 'Password (Not used for Visitor)' : 'Password'}
+          </label>
           <input
             type="password"
             name="password"
             value={formData.password}
             onChange={handleChange}
-            placeholder="Min 8 characters"
-            className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+            placeholder={formData.role === 'visitor' ? 'Ignored' : 'Min 8 characters'}
+            disabled={formData.role === 'visitor'}
+            className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 disabled:bg-gray-100"
           />
         </div>
 
@@ -145,4 +176,5 @@ export function SignupForm({ onSignupSuccess, onClose }: SignupFormProps) {
       </form>
     </div>
   );
+
 }

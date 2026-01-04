@@ -106,20 +106,22 @@ def analyze_and_store():
     print(f"Found {len(feedbacks)} unanalyzed feedbacks.")
 
     for fb in feedbacks:
-        text = fb.get("feedback_text", "")
-        if not text:
-            continue
+        if not fb.get("processed"):
+            fb["processed"] = True
+            text = fb.get("feedback_text", "")
+            if not text:
+                continue
+                
+            print(f"Analyzing: {text[:50]}...")
+            analysis = analyze_feedback(text)
+            print(f"Result: {analysis}")
             
-        print(f"Analyzing: {text[:50]}...")
-        analysis = analyze_feedback(text)
-        print(f"Result: {analysis}")
-        
-        db.collection("museum_feedback") \
-          .document(fb["doc_id"]) \
-          .update({
-              "ai_analysis": analysis
-          })
-        print("Updated Firestore.")
+            db.collection("museum_feedback") \
+            .document(fb["doc_id"]) \
+            .update({
+                "ai_analysis": analysis
+            })
+            print("Updated Firestore.")
 
 if __name__ == "__main__":
     analyze_and_store()

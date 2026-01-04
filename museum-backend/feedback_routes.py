@@ -1,25 +1,74 @@
-import firebase_admin
-from firebase_admin import credentials, firestore
-from fastapi import APIRouter, HTTPException
 import os
+from pydantic import BaseModel, Field
+from datetime import datetime
+import firebase_admin
+from firebase_admin import firestore, credentials, initialize_app
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from typing import Optional
+from analyze_feedback import analyze_feedback
 
 router = APIRouter(tags=["Feedback"])
 
-# Initialize Firebase (Singleton pattern to avoid re-initialization error)
-if not firebase_admin._apps:
-    # Ensure the path to firebase_key.json is correct relative to where main.py runs
-    # Typically in the same folder or specified via env
-    key_path = "firebase_key.json" 
-    if os.path.exists(key_path):
-        cred = credentials.Certificate(key_path)
-        firebase_admin.initialize_app(cred)
-    else:
-        print(f"Warning: {key_path} not found. Feedback routes will fail.")
-
 def get_db():
     if not firebase_admin._apps:
-        raise HTTPException(status_code=500, detail="Firebase not initialized")
+        cred_path = "firebase_key.json"
+        
+        # Check if we are running from root or museum-backend
+        if not os.path.exists(cred_path):
+             # Try going into museum-backend if current dir is root
+             if os.path.exists(os.path.join("museum-backend", cred_path)):
+                 cred_path = os.path.join("museum-backend", cred_path)
+             else:
+                 # Fallback/Error if not found
+                 raise HTTPException(status_code=500, detail="Firebase credentials file (firebase_key.json) not found.")
+
+        cred = credentials.Certificate(cred_path)
+        initialize_app(cred)
+        
     return firestore.client()
+
+class FeedbackCreate(BaseModel):
+    visitor_id: str
+    feedback_text: str
+    rating: int = Field(..., ge=1, le=5)
+
+def process_feedback_background(doc_id: str, text: str):
+    """
+    Background task to analyze feedback using Gemini and update Firestore.
+    """
+    try:
+        print(f"Starting background analysis for feedback {doc_id}...")
+        analysis = analyze_feedback(text)
+        db = get_db()
+        db.collection("museum_feedback").document(doc_id).update({
+            "ai_analysis": analysis,
+            "processed": True
+        })
+        print(f"Background analysis completed for {doc_id}: {analysis}")
+    except Exception as e:
+        print(f"Error in background analysis for {doc_id}: {e}")
+
+@router.post("/api/feedback", status_code=201)
+def submit_feedback(feedback: FeedbackCreate, background_tasks: BackgroundTasks):
+    try:
+        db = get_db()
+        # Add a new document with auto-generated ID
+        new_feedback = {
+            "visitor_id": feedback.visitor_id,
+            "feedback_text": feedback.feedback_text,
+            "rating": feedback.rating,
+            "timestamp": datetime.utcnow(),
+            "processed": False  # Flag for AI analysis script
+        }
+        update_time, doc_ref = db.collection("museum_feedback").add(new_feedback)
+        
+        # Trigger background analysis immediately
+        background_tasks.add_task(process_feedback_background, doc_ref.id, feedback.feedback_text)
+        
+        return {"message": "Feedback submitted successfully"}
+    except Exception as e:
+        print(f"Error submitting feedback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/feedback/analysis")
 def get_feedback_analysis():
@@ -56,5 +105,4 @@ def get_feedback_analysis():
         
     except Exception as e:
         print(f"Error fetching feedback: {e}")
-        # Allow returning empty list instead of crashing if DB is empty or misconfigured locally
         return []
