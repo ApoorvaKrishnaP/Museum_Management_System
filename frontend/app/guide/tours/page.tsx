@@ -18,38 +18,33 @@ export default function GuideToursPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const fetchMyTours = async () => {
-            const savedUser = localStorage.getItem('user');
-            if (!savedUser) {
-                router.push('/');
-                return;
+    const fetchMyTours = async () => {
+        const savedUser = localStorage.getItem('user');
+        if (!savedUser) {
+            router.push('/');
+            return;
+        }
+        const user = JSON.parse(savedUser);
+
+        try {
+            // Directly fetch tours by guide email - single API call!
+            const toursRes = await fetch(`http://localhost:8000/api/tours/by-guide-email?email=${user.email}`);
+            
+            if (!toursRes.ok) {
+                throw new Error('Failed to fetch tours');
             }
-            const user = JSON.parse(savedUser);
+            
+            const toursData = await toursRes.json();
+            setTours(toursData);
+        } catch (error) {
+            console.error("Error loading tours:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-            try {
-                // 1. Get Staff details using email
-                const staffRes = await fetch(`http://localhost:8000/api/staff?email=${user.email}`);
-                const staffData = await staffRes.json();
-
-                if (Array.isArray(staffData) && staffData.length > 0) {
-                    const myStaffId = staffData[0].staff_id;
-
-                    // 2. Fetch tours for this staff ID
-                    const toursRes = await fetch(`http://localhost:8000/api/tours?guide_id=${myStaffId}`);
-                    const toursData = await toursRes.json();
-                    setTours(toursData);
-                } else {
-                    console.error("Staff profile not found for email:", user.email);
-                }
-            } catch (error) {
-                console.error("Error loading tours:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchMyTours();
-    }, [router]);
+    fetchMyTours();
+}, []); // ✅ CHANGED: Empty dependency array
 
     if (loading) return <div className="min-h-screen bg-green-900 text-white flex items-center justify-center">Loading your schedule...</div>;
 

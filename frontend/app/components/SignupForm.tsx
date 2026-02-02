@@ -25,24 +25,17 @@ export function SignupForm({ onSignupSuccess, onClose }: SignupFormProps) {
       ...prev,
       [name]: value,
     }));
-    setErrors([]); // Clear errors on input change
+    setErrors([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setApiError('');
 
-    // Validate form inputs
-    if (formData.role !== 'visitor') {
-      const validation = validateSignup(formData.name, formData.email, formData.password);
-      if (!validation.isValid) {
-        setErrors(validation.errors);
-        return;
-      }
-    }
-    // Basic check for visitor name/email
-    if (formData.role === 'visitor' && (!formData.name || !formData.email)) {
-      setErrors(["Name and Email are required"]);
+    // Always validate name/email/password
+    const validation = validateSignup(formData.name, formData.email, formData.password);
+    if (!validation.isValid) {
+      setErrors(validation.errors);
       return;
     }
 
@@ -53,17 +46,16 @@ export function SignupForm({ onSignupSuccess, onClose }: SignupFormProps) {
 
       if (formData.role === 'visitor') {
         url = 'http://localhost:8000/api/visitors';
-        // Adapt formData to VisitorCreate schema
         body = {
           name: formData.name,
           email: formData.email,
+          password: formData.password,
           age_group: 'Adult',
           nationality: 'General',
           preferred_language: 'English',
           ticket_type: 'Standard',
           id_proof: 'Online',
           contact: '0000000000',
-          // We ignore password for visitor creation as ID is auto-gen
         };
       }
 
@@ -76,9 +68,6 @@ export function SignupForm({ onSignupSuccess, onClose }: SignupFormProps) {
       const data = await response.json();
 
       if (response.ok) {
-        if (formData.role === 'visitor') {
-          alert(`Visitor Registered! Your Login Ticket ID is: ${data.visitor_id}`);
-        }
         onSignupSuccess(data);
         setFormData({ name: '', email: '', role: 'guide', password: '' });
         onClose();
@@ -152,17 +141,14 @@ export function SignupForm({ onSignupSuccess, onClose }: SignupFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {formData.role === 'visitor' ? 'Password (Not used for Visitor)' : 'Password'}
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
           <input
             type="password"
             name="password"
             value={formData.password}
             onChange={handleChange}
-            placeholder={formData.role === 'visitor' ? 'Ignored' : 'Min 8 characters'}
-            disabled={formData.role === 'visitor'}
-            className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 disabled:bg-gray-100"
+            placeholder="Min 8 characters"
+            className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
           />
         </div>
 
@@ -176,5 +162,4 @@ export function SignupForm({ onSignupSuccess, onClose }: SignupFormProps) {
       </form>
     </div>
   );
-
 }

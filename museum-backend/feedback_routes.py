@@ -40,7 +40,7 @@ def process_feedback_background(doc_id: str, text: str):
         print(f"Starting background analysis for feedback {doc_id}...")
         analysis = analyze_feedback(text)
         db = get_db()
-        db.collection("museum_feedback").document(doc_id).update({
+        db.collection("visitor_feedback").document(doc_id).update({
             "ai_analysis": analysis,
             "processed": True
         })
@@ -60,7 +60,7 @@ def submit_feedback(feedback: FeedbackCreate, background_tasks: BackgroundTasks)
             "timestamp": datetime.utcnow(),
             "processed": False  # Flag for AI analysis script
         }
-        update_time, doc_ref = db.collection("museum_feedback").add(new_feedback)
+        update_time, doc_ref = db.collection("visitor_feedback").add(new_feedback)
         
         # Trigger background analysis immediately
         background_tasks.add_task(process_feedback_background, doc_ref.id, feedback.feedback_text)
@@ -77,7 +77,7 @@ def get_feedback_analysis():
     """
     try:
         db = get_db()
-        docs = db.collection("museum_feedback").stream()
+        docs = db.collection("visitor_feedback").stream()
         actionable_feedbacks = []
         
         for doc in docs:

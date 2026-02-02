@@ -31,6 +31,9 @@ export default function GuidePage() {
 
     setUser(userData);
 
+    const controller = new AbortController();
+    const signal = controller.signal;
+
     // Fetch Stats
     const fetchStats = async () => {
       try {
@@ -38,27 +41,32 @@ export default function GuidePage() {
 
         // 1. Personal Stats: Tours Today 
         // First get staff ID
-        const staffRes = await fetch(`http://localhost:8000/api/staff?email=${userData.email}`);
+        const staffRes = await fetch(`http://localhost:8000/api/staff?email=${userData.email}`, { signal });
+        if (!staffRes.ok) throw new Error('Failed to fetch staff info');
+        
         const staffData = await staffRes.json();
         let toursCount = 0;
 
         if (Array.isArray(staffData) && staffData.length > 0) {
           const staffId = staffData[0].staff_id;
-          const toursRes = await fetch(`http://localhost:8000/api/tours?guide_id=${staffId}&date=${today}`);
-          const toursData = await toursRes.json();
-          if (Array.isArray(toursData)) toursCount = toursData.length;
+          const toursRes = await fetch(`http://localhost:8000/api/tours?guide_id=${staffId}&date=${today}`, { signal });
+           // If tours fetch fails, we can treat it as 0 or throw. Let's inspect.
+          if (toursRes.ok) {
+              const toursData = await toursRes.json();
+              if (Array.isArray(toursData)) toursCount = toursData.length;
+          }
         }
 
         // 2. Global Stats
         const [visRes, artRes, galRes] = await Promise.all([
-          fetch('http://localhost:8000/api/visitors'),
-          fetch('http://localhost:8000/api/artifacts'),
-          fetch('http://localhost:8000/api/galleries')
+          fetch('http://localhost:8000/api/visitors', { signal }),
+          fetch('http://localhost:8000/api/artifacts', { signal }),
+          fetch('http://localhost:8000/api/galleries', { signal })
         ]);
 
-        const visitors = await visRes.json();
-        const artifacts = await artRes.json();
-        const galleries = await galRes.json();
+        const visitors = visRes.ok ? await visRes.json() : [];
+        const artifacts = artRes.ok ? await artRes.json() : [];
+        const galleries = galRes.ok ? await galRes.json() : [];
 
         setStats({
           toursToday: toursCount,
@@ -67,15 +75,21 @@ export default function GuidePage() {
           galleries: Array.isArray(galleries) ? galleries.length : 0
         });
 
-      } catch (error) {
-        console.error("Error loading stats:", error);
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+            console.error("Error loading stats:", error);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchStats();
-  }, [router]);
+
+    return () => {
+        controller.abort();
+    };
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('user');

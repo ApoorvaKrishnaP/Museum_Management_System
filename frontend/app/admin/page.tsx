@@ -277,13 +277,12 @@ export default function AdminPage() {
     fetch(url).then(res => res.json()).then(setVisitors).catch(console.error);
   };
 
-  const searchStaff = () => {
-    let url = 'http://localhost:8000/api/staff?';
-    if (staffSearch.type === 'Role' && staffSearch.role) url += `role=${staffSearch.role}`;
-    else if (staffSearch.type === 'Name' && staffSearch.name) url += `name=${staffSearch.name}`;
+const searchStaff = () => {
+  let url = 'http://localhost:8000/api/staff?';
+  if (staffSearch.name) url += `name=${encodeURIComponent(staffSearch.name)}`;
 
-    fetch(url).then(res => res.json()).then(setStaffList).catch(console.error);
-  };
+  fetch(url).then(res => res.json()).then(setStaffList).catch(console.error);
+};
 
   const searchFinance = () => {
     let url = 'http://localhost:8000/api/finance?';
@@ -313,15 +312,15 @@ export default function AdminPage() {
 
   // Tours State
   const [tourData, setTourData] = useState({
-    guide_id: '',
-    tour_date: '',
-    tour_time: '',
-    visitor_group_name: '',
-    group_size: '',
-    language: 'English',
-    status: 'Scheduled',
-    visitor_ids: '' // Comma separated string for input
-  });
+  guide_email: '',  // CHANGED from guide_id
+  tour_date: '',
+  tour_time: '',
+  visitor_group_name: '',
+  group_size: '',
+  language: 'English',
+  status: 'Scheduled',
+  visitor_ids: ''
+});
   const [tourErrors, setTourErrors] = useState<{ [key: string]: string }>({});
   const [guides, setGuides] = useState<any[]>([]);
 
@@ -618,7 +617,7 @@ export default function AdminPage() {
 
   const validateTourForm = () => {
     const newErrors: { [key: string]: string } = {};
-    if (!tourData.guide_id) newErrors.guide_id = "Please select a guide.";
+    if (!tourData.guide_email) newErrors.guide_email = "Please select a guide.";
     if (!tourData.visitor_group_name.trim()) newErrors.visitor_group_name = "Group Name is required.";
     if (!tourData.group_size || Number(tourData.group_size) <= 0) newErrors.group_size = "Valid group size required.";
     if (!tourData.tour_date) newErrors.tour_date = "Date is required.";
@@ -762,11 +761,11 @@ export default function AdminPage() {
 
     try {
       const payload = {
-        ...tourData,
-        guide_id: Number(tourData.guide_id),
-        group_size: Number(tourData.group_size),
-        visitor_ids: tourData.visitor_ids.split(',').map(s => Number(s.trim())) // Convert string "1,2,3" to [1,2,3]
-      };
+  ...tourData,
+  guide_email: tourData.guide_email,  // Send email, not ID
+  group_size: Number(tourData.group_size),
+  visitor_ids: tourData.visitor_ids.split(',').map(s => Number(s.trim()))
+};
 
       const res = await fetch('http://localhost:8000/api/tours', {
         method: 'POST',
@@ -777,9 +776,9 @@ export default function AdminPage() {
       if (res.ok) {
         alert('Tour scheduled successfully!');
         setTourData({
-          guide_id: '', tour_date: '', tour_time: '', visitor_group_name: '',
-          group_size: '', language: 'English', status: 'Scheduled', visitor_ids: ''
-        });
+  guide_email: '', tour_date: '', tour_time: '', visitor_group_name: '',
+  group_size: '', language: 'English', status: 'Scheduled', visitor_ids: ''
+});
       } else {
         const err = await res.json();
         alert(`Error: ${err.detail}`);
@@ -1002,58 +1001,53 @@ export default function AdminPage() {
                   </button>
                 </form>
                 {/* VISITOR SEARCH & LIST */}
-                <div className="mt-8 pt-6 border-t border-purple-700">
-                  <h4 className="text-xl font-bold mb-4 text-purple-200">Search Visitors</h4>
-                  <div className="flex gap-2 mb-4">
-                    <input
-                      type="text"
-                      value={visitorSearch.name}
-                      onChange={(e) => setVisitorSearch({ ...visitorSearch, name: e.target.value })}
-                      placeholder="Search by Name..."
-                      className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600 text-white placeholder-purple-400"
-                    />
+<div className="mt-8 pt-6 border-t border-purple-700">
+  <h4 className="text-xl font-bold mb-4 text-purple-200">🔍 Search & Manage Visitors</h4>
+  <div className="flex gap-2 mb-4">
+    <input
+      type="text"
+      value={visitorSearch.name}
+      onChange={(e) => setVisitorSearch({ ...visitorSearch, name: e.target.value })}
+      placeholder="Enter name..."
+      className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600 text-white placeholder-purple-400"
+    />
+    <button onClick={searchVisitors} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
+  </div>
 
-                    <select
-                      value={visitorSearch.nationality}
-                      onChange={(e) => setVisitorSearch({ ...visitorSearch, nationality: e.target.value })}
-                      className="bg-purple-800/50 text-white rounded px-3 py-2 border border-purple-600"
-                    >
-                      <option value="">All Nationalities</option>
-                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-
-                    <button onClick={searchVisitors} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-purple-100">
-                      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
-                        <tr>
-                          <th className="px-4 py-2">ID</th>
-                          <th className="px-4 py-2">Name</th>
-                          <th className="px-4 py-2">Contact</th>
-                          <th className="px-4 py-2">Ticket</th>
-                          <th className="px-4 py-2">Last Visit</th>
-                          <th className="px-4 py-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visitors.map(v => (
-                          <tr key={v.visitor_id} className="border-b border-purple-800 hover:bg-purple-800/30">
-                            <td className="px-4 py-2">{v.visitor_id}</td>
-                            <td className="px-4 py-2 font-bold">{v.name}</td>
-                            <td className="px-4 py-2">{v.contact}</td>
-                            <td className="px-4 py-2">{v.ticket_type}</td>
-                            <td className="px-4 py-2">{v.last_visit_date}</td>
-                            <td className="px-4 py-2 flex gap-2">
-                              <button onClick={() => startEditVisitor(v)} className="text-blue-400 hover:text-blue-300">Edit</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+  <div className="overflow-x-auto">
+    <table className="w-full text-left text-sm text-purple-100">
+      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
+        <tr>
+          <th className="px-4 py-2">ID</th>
+          <th className="px-4 py-2">Name</th>
+          <th className="px-4 py-2">Contact</th>
+          <th className="px-4 py-2">Ticket</th>
+          <th className="px-4 py-2">Last Visit</th>
+          <th className="px-4 py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {visitors.map(v => (
+          <tr key={v.visitor_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+            <td className="px-4 py-2">{v.visitor_id}</td>
+            <td className="px-4 py-2 font-bold">{v.name}</td>
+            <td className="px-4 py-2">{v.contact}</td>
+            <td className="px-4 py-2">{v.ticket_type}</td>
+            <td className="px-4 py-2">{v.last_visit_date}</td>
+            <td className="px-4 py-2 flex gap-2">
+              <button onClick={() => startEditVisitor(v)} className="text-blue-400 hover:text-blue-300">Edit</button>
+              <button onClick={async () => {
+                if (!confirm("Delete this visitor?")) return;
+                await fetch(`http://localhost:8000/api/visitors/${v.visitor_id}`, { method: 'DELETE' });
+                searchVisitors();
+              }} className="text-red-400 hover:text-red-300">Delete</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
 
               </>
             ) : activeTab === 'staff' ? (
@@ -1099,64 +1093,47 @@ export default function AdminPage() {
                 </form>
 
                 {/* STAFF SEARCH & LIST */}
-                <div className="mt-8 pt-6 border-t border-purple-700">
-                  <h4 className="text-xl font-bold mb-4 text-purple-200">Manage Staff</h4>
-                  <div className="flex gap-2 mb-4">
-                    <select
-                      value={staffSearch.type}
-                      onChange={(e) => setStaffSearch({ ...staffSearch, type: e.target.value })}
-                      className="bg-purple-800 text-white rounded px-3 py-2 border border-purple-600"
-                    >
-                      <option>Role</option>
-                      <option>Name</option>
-                    </select>
+<div className="mt-8 pt-6 border-t border-purple-700">
+  <h4 className="text-xl font-bold mb-4 text-purple-200">🔍 Search & Manage Staff</h4>
+  <div className="flex gap-2 mb-4">
+    <input
+      type="text"
+      value={staffSearch.name}
+      onChange={e => setStaffSearch({ ...staffSearch, name: e.target.value })}
+      placeholder="Enter name..."
+      className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600 text-white placeholder-purple-400"
+    />
+    <button onClick={searchStaff} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
+  </div>
 
-                    {staffSearch.type === 'Role' ? (
-                      <select value={staffSearch.role} onChange={e => setStaffSearch({ ...staffSearch, role: e.target.value })} className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600">
-                        {['Customer_care', 'Tour_guide', 'Security', 'Admin', 'Manager', 'Custodian'].map(role => (
-                          <option key={role} value={role}>{role.replace('_', ' ')}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={staffSearch.name}
-                        onChange={e => setStaffSearch({ ...staffSearch, name: e.target.value })}
-                        placeholder="Search by Name..."
-                        className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600 text-white placeholder-purple-400"
-                      />
-                    )}
-                    <button onClick={searchStaff} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-purple-100">
-                      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
-                        <tr>
-                          <th className="px-4 py-2">ID</th>
-                          <th className="px-4 py-2">Name</th>
-                          <th className="px-4 py-2">Role</th>
-                          <th className="px-4 py-2">Contact</th>
-                          <th className="px-4 py-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {staffList.map(s => (
-                          <tr key={s.staff_id} className="border-b border-purple-800 hover:bg-purple-800/30">
-                            <td className="px-4 py-2">{s.staff_id}</td>
-                            <td className="px-4 py-2 font-bold">{s.name}</td>
-                            <td className="px-4 py-2">{s.occupation}</td>
-                            <td className="px-4 py-2">{s.contact}</td>
-                            <td className="px-4 py-2 flex gap-2">
-                              <button onClick={() => startEditStaff(s)} className="text-blue-400 hover:text-blue-300">Edit</button>
-                              <button onClick={() => handleDeleteStaff(s.staff_id)} className="text-red-400 hover:text-red-300">Del</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+  <div className="overflow-x-auto">
+    <table className="w-full text-left text-sm text-purple-100">
+      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
+        <tr>
+          <th className="px-4 py-2">ID</th>
+          <th className="px-4 py-2">Name</th>
+          <th className="px-4 py-2">Role</th>
+          <th className="px-4 py-2">Contact</th>
+          <th className="px-4 py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {staffList.map(s => (
+          <tr key={s.staff_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+            <td className="px-4 py-2">{s.staff_id}</td>
+            <td className="px-4 py-2 font-bold">{s.name}</td>
+            <td className="px-4 py-2">{s.occupation}</td>
+            <td className="px-4 py-2">{s.contact}</td>
+            <td className="px-4 py-2 flex gap-2">
+              <button onClick={() => startEditStaff(s)} className="text-blue-400 hover:text-blue-300">Edit</button>
+              <button onClick={() => handleDeleteStaff(s.staff_id)} className="text-red-400 hover:text-red-300">Delete</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
               </>
             ) : activeTab === 'finance' ? (
               <>
@@ -1244,8 +1221,13 @@ export default function AdminPage() {
                             <td className="px-4 py-2">{f.payment_method}</td>
                             <td className="px-4 py-2">{f.transaction_date}</td>
                             <td className="px-4 py-2 flex gap-2">
-                              <button onClick={() => startEditFinance(f)} className="text-blue-400 hover:text-blue-300">Edit</button>
-                            </td>
+  <button onClick={() => startEditFinance(f)} className="text-blue-400 hover:text-blue-300">Edit</button>
+  <button onClick={async () => {
+    if (!confirm("Delete this transaction?")) return;
+    await fetch(`http://localhost:8000/api/finance/${f.transaction_id}`, { method: 'DELETE' });
+    searchFinance();
+  }} className="text-red-400 hover:text-red-300">Delete</button>
+</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1264,18 +1246,23 @@ export default function AdminPage() {
                   </div>
 
                   <div>
-                    <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Guide (ID)</label>
-                    <input
-                      type="text"
-                      name="guide_id"
-                      value={tourData.guide_id}
-                      onChange={handleTourChange}
-                      placeholder="Enter Guide ID"
-                      className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
-                      required
-                    />
-                    {tourErrors.guide_id && <p className="text-red-400 text-xs mt-1">{tourErrors.guide_id}</p>}
-                  </div>
+  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Tour Guide</label>
+  <select
+    name="guide_email"
+    value={tourData.guide_email}
+    onChange={handleTourChange}
+    className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+    required
+  >
+    <option value="">-- Select Tour Guide --</option>
+    {guides.map(g => (
+      <option key={g.staff_id} value={g.email}>
+        {g.name} ({g.email})
+      </option>
+    ))}
+  </select>
+  {tourErrors.guide_email && <p className="text-red-400 text-xs mt-1">{tourErrors.guide_email}</p>}
+</div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1324,93 +1311,67 @@ export default function AdminPage() {
                 </form>
 
                 {/* TOUR SEARCH & LIST */}
-                <div className="mt-8 pt-6 border-t border-purple-700">
-                  <h4 className="text-xl font-bold mb-4 text-purple-200">Manage Tours</h4>
-                  <div className="flex gap-2 mb-4">
-                    <select
-                      value={tourSearch.type}
-                      onChange={(e) => setTourSearch({ ...tourSearch, type: e.target.value })}
-                      className="bg-purple-800 text-white rounded px-3 py-2 border border-purple-600"
-                    >
-                      <option>Date</option>
-                      <option>Guide Name</option>
-                      <option>Status</option>
-                    </select>
+<div className="mt-8 pt-6 border-t border-purple-700">
+  <h4 className="text-xl font-bold mb-4 text-purple-200">🔍 Search & Manage Tours</h4>
+  <div className="flex gap-2 mb-4">
+    <input 
+      type="date" 
+      value={tourSearch.date} 
+      onChange={e => setTourSearch({ ...tourSearch, date: e.target.value })} 
+      className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600" 
+    />
+    <button onClick={searchTours} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
+  </div>
 
-                    {tourSearch.type === 'Date' &&
-                      <input type="date" value={tourSearch.date} onChange={e => setTourSearch({ ...tourSearch, date: e.target.value })} className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600" />
-                    }
-                    {tourSearch.type === 'Guide Name' &&
-                      <select value={tourSearch.guide_id} onChange={e => setTourSearch({ ...tourSearch, guide_id: e.target.value })} className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600">
-                        <option value="">Select Guide</option>
-                        {guides.map(g => <option key={g.staff_id} value={g.staff_id}>{g.name}</option>)}
-                      </select>
-                    }
-                    {tourSearch.type === 'Status' &&
-                      <select value={tourSearch.status} onChange={e => setTourSearch({ ...tourSearch, status: e.target.value })} className="flex-1 bg-purple-800/50 rounded px-3 py-2 border border-purple-600">
-                        <option>Scheduled</option>
-                        <option>Completed</option>
-                        <option>Cancelled</option>
-                      </select>
-                    }
-
-                    <button onClick={searchTours} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold">Search</button>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-purple-100">
-                      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
-                        <tr>
-                          <th className="px-4 py-2">ID</th>
-                          <th className="px-4 py-2">Date</th>
-                          <th className="px-4 py-2">Time</th>
-                          <th className="px-4 py-2">Group</th>
-                          <th className="px-4 py-2">Status</th>
-                          <th className="px-4 py-2">Created</th>
-                          <th className="px-4 py-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tours.map((t: any) => (
-                          <tr key={t.tour_id} className="border-b border-purple-800 hover:bg-purple-800/30">
-                            <td className="px-4 py-2">{t.tour_id}</td>
-                            <td className="px-4 py-2">{t.tour_date}</td>
-                            <td className="px-4 py-2">{t.tour_time}</td>
-                            <td className="px-4 py-2">{t.visitor_group_name}</td>
-                            <td className="px-4 py-2">
-                              <span className={`px-2 py-1 rounded text-xs ${t.status === 'Scheduled' ? 'bg-yellow-600' : t.status === 'Completed' ? 'bg-green-600' : 'bg-red-600'}`}>
-                                {t.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-xs text-gray-400">{t.created_at ? new Date(t.created_at).toLocaleDateString() : '-'}</td>
-                            <td className="px-4 py-2 flex gap-2">
-                              <button onClick={() => {
-                                // Populate form for edit
-                                setTourData({
-                                  guide_id: String(t.guide_id),
-                                  tour_date: t.tour_date,
-                                  tour_time: t.tour_time,
-                                  visitor_group_name: t.visitor_group_name,
-                                  group_size: String(t.group_size),
-                                  language: t.language,
-                                  status: t.status,
-                                  visitor_ids: Array.isArray(t.visitor_ids) ? t.visitor_ids.join(', ') : t.visitor_ids
-                                });
-                                // We'd ideally need an editing ID for Update logic (not implemented fully for Tours yet, using Create logic mostly)
-                                // For now, let's just populate.
-                              }} className="text-blue-400 hover:text-blue-300">Edit</button>
-                              <button onClick={async () => {
-                                if (!confirm("Delete tour?")) return;
-                                await fetch(`http://localhost:8000/api/tours/${t.tour_id}`, { method: 'DELETE' });
-                                searchTours(); // Refresh
-                              }} className="text-red-400 hover:text-red-300">Del</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+  <div className="overflow-x-auto">
+    <table className="w-full text-left text-sm text-purple-100">
+      <thead className="bg-purple-800 text-purple-300 uppercase text-xs">
+        <tr>
+          <th className="px-4 py-2">ID</th>
+          <th className="px-4 py-2">Date</th>
+          <th className="px-4 py-2">Time</th>
+          <th className="px-4 py-2">Group</th>
+          <th className="px-4 py-2">Status</th>
+          <th className="px-4 py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {tours.map((t: any) => (
+          <tr key={t.tour_id} className="border-b border-purple-800 hover:bg-purple-800/30">
+            <td className="px-4 py-2">{t.tour_id}</td>
+            <td className="px-4 py-2">{t.tour_date}</td>
+            <td className="px-4 py-2">{t.tour_time}</td>
+            <td className="px-4 py-2">{t.visitor_group_name}</td>
+            <td className="px-4 py-2">
+              <span className={`px-2 py-1 rounded text-xs ${t.status === 'Scheduled' ? 'bg-yellow-600' : t.status === 'Completed' ? 'bg-green-600' : 'bg-red-600'}`}>
+                {t.status}
+              </span>
+            </td>
+            <td className="px-4 py-2 flex gap-2">
+              <button onClick={() => {
+                setTourData({
+                  guide_id: String(t.guide_id),
+                  tour_date: t.tour_date,
+                  tour_time: t.tour_time,
+                  visitor_group_name: t.visitor_group_name,
+                  group_size: String(t.group_size),
+                  language: t.language,
+                  status: t.status,
+                  visitor_ids: Array.isArray(t.visitor_ids) ? t.visitor_ids.join(', ') : t.visitor_ids
+                });
+              }} className="text-blue-400 hover:text-blue-300">Edit</button>
+              <button onClick={async () => {
+                if (!confirm("Delete tour?")) return;
+                await fetch(`http://localhost:8000/api/tours/${t.tour_id}`, { method: 'DELETE' });
+                searchTours();
+              }} className="text-red-400 hover:text-red-300">Delete</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
               </>
             ) : activeTab === 'gallery' ? (
               <>

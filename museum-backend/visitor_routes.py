@@ -1,26 +1,37 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, Field, validator
-from datetime import date, datetime
+from datetime import date
 from database import get_conn
+from db_sec import hash_password, verify_password
 from typing import Optional
-import re
 
 router = APIRouter(tags=["Visitors"])
 
 # --- Pydantic Schemas ---
 
+class VisitorSignup(BaseModel):
+    name: str = Field(..., min_length=2)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+
+    @validator('name')
+    def name_must_be_trimmed(cls, v):
+        return v.strip()
+
+class VisitorLogin(BaseModel):
+    email: EmailStr
+    password: str
+
 class VisitorCreate(BaseModel):
-    name: str = Field(..., min_length=2, description="Visitor's full name")
-    age_group: str = Field(..., description="Age group (e.g., 18-25, 26-40)")
-    email: EmailStr = Field(..., description="Unique email address")
-    nationality: str = Field(..., description="Nationality from dropdown")
-    preferred_language: str = Field(..., description="Preferred language from dropdown")
-    ticket_type: str = Field(..., description="Ticket type: Standard, VIP, Student")
-    id_proof: str = Field(..., description="ID Proof document type")
-    contact: str = Field(..., pattern=r"^\+?[0-9]{7,15}$", description="Contact number")
-    
-    # We will derive these or set defaults, but for the form we might not ask for last_visit_date if it's new
-    # However, the user request says "Last Visit Date" in the form.
+    """For admin to create visitor records"""
+    name: str = Field(..., min_length=2)
+    email: EmailStr
+    age_group: str = Field(default="Adult")
+    nationality: str = Field(default="General")
+    preferred_language: str = Field(default="English")
+    ticket_type: str = Field(default="Standard")
+    id_proof: str = Field(default="Online")
+    contact: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{7,15}$")
     last_visit_date: Optional[date] = None
 
     @validator('name')
@@ -43,42 +54,114 @@ class VisitorCreate(BaseModel):
 # --- Routes ---
 
 @router.post("/api/visitors", status_code=201)
-def create_visitor(visitor: VisitorCreate):
+def signup_visitor(visitor: VisitorSignup):
+    """Visitor self-registration - only Authentication table"""
     conn = get_conn()
     cur = conn.cursor()
-    
-    
-    # Check if email or contact already exists to provide better error
-    
-
-    # Generate a random 4-digit ID
-    import random
-    random_id = random.randint(1000, 9999)
-
     try:
+        # Check if email already exists
+        cur.execute('SELECT id FROM "Authentication" WHERE "Email" = %s', (visitor.email.lower(),))
+        if cur.fetchone():
+            raise HTTPException(status_code=400, detail="Email already registered")
+
+        # Hash password
+        hashed_password = hash_password(visitor.password)
+
+        # Insert into Authentication table ONLY
+        cur.execute("""
+            INSERT INTO "Authentication" ("Name", "Email", "Role", "Password_hash")
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        """, (visitor.name, visitor.email.lower(), 'visitor', hashed_password))
+        
+        auth_id = cur.fetchone()['id']
+        conn.commit()
+        
+        return {
+            "message": "Visitor registered successfully",
+            "role": "visitor",
+            "name": visitor.name,
+            "email": visitor.email
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+@router.post("/api/visitors/login", status_code=200)
+def login_visitor(login_data: VisitorLogin):
+    """Visitor login - check Authentication table"""
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Check Authentication table for visitor role
+        cur.execute("""
+            SELECT "Name", "Email", "Password_hash" FROM "Authentication"
+            WHERE "Email" = %s AND "Role" = 'visitor'
+        """, (login_data.email.lower(),))
+        auth = cur.fetchone()
+        
+        if not auth:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        if not verify_password(login_data.password, auth["Password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        return {
+            "message": "Login successful",
+            "name": auth["Name"],
+            "email": auth["Email"],
+            "role": "visitor"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+@router.post("/api/admin/visitors", status_code=201)
+def create_visitor_record(visitor: VisitorCreate):
+    """Admin creates visitor record in visitor table"""
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Check if email exists in Authentication
+        cur.execute('SELECT id FROM "Authentication" WHERE "Email" = %s AND "Role" = \'visitor\'', 
+                    (visitor.email.lower(),))
+        if not cur.fetchone():
+            raise HTTPException(status_code=400, detail="Visitor must signup first")
+
+        # Insert visitor profile
         cur.execute("""
             INSERT INTO visitor (
-                visitor_id, name, age_group, email, nationality, preferred_language, 
+                name, age_group, email, nationality, preferred_language,
                 last_visit_date, ticket_type, id_proof, contact
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s
             ) RETURNING visitor_id;
         """, (
-            random_id,
-            visitor.name, 
-            visitor.age_group, 
-            visitor.email.lower(), 
-            visitor.nationality, 
+            visitor.name,
+            visitor.age_group,
+            visitor.email.lower(),
+            visitor.nationality,
             visitor.preferred_language,
             visitor.last_visit_date,
             visitor.ticket_type,
             visitor.id_proof,
             visitor.contact
         ))
-        
+
         new_id = cur.fetchone()['visitor_id']
         conn.commit()
-        return {"visitor_id": new_id, "message": "Visitor registered successfully"}
+        return {"visitor_id": new_id, "message": "Visitor record created successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -87,10 +170,8 @@ def create_visitor(visitor: VisitorCreate):
         conn.close()
 
 @router.get("/api/visitors", status_code=200)
-def get_visitors(
-    name: Optional[str] = None,
-    nationality: Optional[str] = None
-):
+def get_visitors(name: Optional[str] = None, nationality: Optional[str] = None):
+    """Admin view all visitor records"""
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -119,10 +200,10 @@ def get_visitors(
 
 @router.put("/api/visitors/{visitor_id}", status_code=200)
 def update_visitor(visitor_id: int, visitor: VisitorCreate):
+    """Admin update visitor record"""
     conn = get_conn()
     cur = conn.cursor()
     try:
-        # Check if exists
         cur.execute("SELECT visitor_id FROM visitor WHERE visitor_id = %s", (visitor_id,))
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Visitor not found")
@@ -141,31 +222,6 @@ def update_visitor(visitor_id: int, visitor: VisitorCreate):
         return {"message": "Visitor updated successfully"}
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        cur.close()
-# ... (previous code)
-
-class VisitorLogin(BaseModel):
-    email: EmailStr
-    visitor_id: int
-
-@router.post("/api/visitors/login", status_code=200)
-def login_visitor(login_data: VisitorLogin):
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT * FROM visitor WHERE email = %s AND visitor_id = %s", (login_data.email.lower(), login_data.visitor_id))
-        visitor = cur.fetchone()
-        
-        if not visitor:
-             raise HTTPException(status_code=401, detail="Invalid credentials")
-             
-        # Convert row to dict manually if using RealDictCursor or just simple matching
-        # Assuming RealDictCursor is used based on create_visitor 'RETURNING' usage
-        return {"message": "Login successful", "visitor": visitor}
-        
-    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()

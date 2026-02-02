@@ -49,11 +49,24 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800 text-white">
-      {/* Navigation */}
+    <div className="min-h-screen bg-linear-to-b from-blue-900 to-blue-800 text-white">
+            {/* Navigation with Logo */}
       <nav className="bg-blue-950 shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <h1 className="text-3xl font-bold">🏛️ Grand Museum</h1>
+        <div className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+          {/* Left Side: Title + Logo */}
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start">
+              <h1 className="text-3xl font-bold">🏛️ Grand Museum</h1>
+              {/* Logo below text */}
+              <img 
+                src="/RVCE_LOGOpng.png" 
+                alt="RVCE Logo" 
+                className="h-12 mt-2 object-contain"
+              />
+            </div>
+          </div>
+
+          {/* Right Side: User Info & Logout */}
           {user && (
             <div className="flex items-center gap-4">
               <span className="text-blue-100">Welcome, {user.name}! ({user.role})</span>
@@ -67,7 +80,6 @@ export default function Home() {
           )}
         </div>
       </nav>
-
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-12">
         {/* Hero Section */}

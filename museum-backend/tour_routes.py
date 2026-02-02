@@ -9,9 +9,9 @@ router = APIRouter(tags=["Tours"])
 
 # --- Pydantic Schema ---
 class TourCreate(BaseModel):
-    guide_id: int = Field(..., description="ID of the Guide (Staff)")
+    guide_email: str = Field(..., description="Email of the Guide")  # ADD THIS
     tour_date: date = Field(..., description="Date of the tour")
-    tour_time: str = Field(..., description="Time of the tour (HH:MM)") # Receive as string, validation handles conversion if needed or just pass to DB which handles string->time
+    tour_time: str = Field(..., description="Time of the tour (HH:MM)")
     visitor_group_name: str = Field(..., min_length=1, description="Name of the visitor group")
     group_size: int = Field(..., gt=0, description="Number of visitors")
     language: str = Field(..., description="Tour language")
@@ -67,7 +67,26 @@ def get_tours(
     finally:
         cur.close()
         conn.close()
-
+@router.get("/api/tours/by-guide-email", status_code=200)
+def get_tours_by_guide_email(email: str):
+    """Fetch tours assigned to a specific guide by their email."""
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        query = """
+            SELECT t.* FROM tours t
+            JOIN staff s ON t.guide_id = s.staff_id
+            WHERE s.email = %s AND s.occupation = 'Tour_guide'
+            ORDER BY t.tour_date DESC
+        """
+        cur.execute(query, (email,))
+        rows = cur.fetchall()
+        return rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
 @router.get("/api/guides", status_code=200)
 def get_tour_guides():
     """Fetch all staff members who are Tour Guides for the dropdown."""
@@ -103,40 +122,49 @@ def create_tour(tour: TourCreate):
     conn = get_conn()
     cur = conn.cursor()
     
-    tour_id = random.randint(1000, 9999) # Random 4-digit ID
-
     try:
-        # 1. Verify Guide Exists and is a Tour Guide
-        cur.execute("SELECT staff_id FROM staff WHERE staff_id = %s AND occupation = 'Tour_guide'", (tour.guide_id,))
-        if not cur.fetchone():
-            raise HTTPException(status_code=400, detail="Invalid Guide ID or Staff is not a Tour Guide.")
-
-        # 2. Verify all Visitor IDs exist (Optional)
-
-        # 3. Create Tour
+        # STEP 1: Convert guide_email to guide_id
+        cur.execute(
+            "SELECT staff_id FROM staff WHERE email = %s AND occupation = 'Tour_guide'",
+            (tour.guide_email,)
+        )
+        staff_result = cur.fetchone()
+        
+        if not staff_result:
+            raise HTTPException(status_code=404, detail=f"No tour guide found with email: {tour.guide_email}")
+        
+        guide_id = staff_result['staff_id']
+        
+        # STEP 2: Generate random tour_id
+        tour_id = random.randint(10000, 99999)
+        
+        # STEP 3: Insert tour with guide_id (not guide_email)
         cur.execute("""
             INSERT INTO tours (
-                tour_id, guide_id, tour_date, tour_time, visitor_group_name, 
-                group_size, language, status, visitor_ids
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s
-            ) RETURNING tour_id;
+                tour_id, guide_id, tour_date, tour_time, visitor_group_name,
+                group_size, language, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING tour_id;
         """, (
-            tour_id,
-            tour.guide_id,
-            tour.tour_date,
-            tour.tour_time,
-            tour.visitor_group_name,
-            tour.group_size,
-            tour.language,
-            tour.status,
-            tour.visitor_ids
+            tour_id, guide_id, tour.tour_date, tour.tour_time,
+            tour.visitor_group_name, tour.group_size, tour.language, tour.status
         ))
         
-        new_id = cur.fetchone()['tour_id'] 
+        new_tour_id = cur.fetchone()['tour_id']
+        
+        # STEP 4: Insert visitor mappings
+        for visitor_id in tour.visitor_ids:
+            cur.execute("""
+                INSERT INTO attends_tour (visitor_id, tour_id)
+                VALUES (%s, %s)
+            """, (visitor_id, new_tour_id))
+        
         conn.commit()
-        return {"message": "Tour scheduled successfully", "tour_id": new_id}
-
+        return {"message": "Tour scheduled successfully", "tour_id": new_tour_id}
+        
+    except HTTPException:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

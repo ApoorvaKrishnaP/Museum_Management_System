@@ -11,7 +11,7 @@ interface LoginFormProps {
 export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
   const [formData, setFormData] = useState({
     email: '',
-    role: 'visitor', // Default to visitor as per common use case? Or keep 'guide'. User said "have dropdown... for login". Default 'visitor' seems friendlier for public.
+    role: 'visitor',
     password: '',
   });
   const [errors, setErrors] = useState<string[]>([]);
@@ -31,8 +31,6 @@ export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
     e.preventDefault();
     setApiError('');
 
-    // Basic validation
-    // For visitor, 'password' field holds the ID.
     if (!formData.email || !formData.password) {
       setErrors(["Please fill in all fields"]);
       return;
@@ -40,41 +38,35 @@ export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
 
     setLoading(true);
     try {
-      let response;
-      let body;
-      let url;
+      let url: string;
+      let body: any;
 
       if (formData.role === 'visitor') {
         url = 'http://localhost:8000/api/visitors/login';
-        body = JSON.stringify({
+        body = {
           email: formData.email,
-          visitor_id: parseInt(formData.password) // Reuse password field for ID
-        });
+          password: formData.password
+        };
       } else {
         url = 'http://localhost:8000/api/auth/login';
-        body = JSON.stringify(formData);
+        body = formData;
       }
 
-      response = await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: body,
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        let userObj = data.user || data.visitor;
-        // Ensure role is set for redirection logic
+        const userObj = data.user || data;
+        localStorage.setItem('user', JSON.stringify(userObj));
         if (formData.role === 'visitor') {
-          userObj = { ...userObj, role: 'visitor' };
-          // Visitor login usually returns 'visitor' object, standard login returns 'user'
-          localStorage.setItem('visitor_user', JSON.stringify(userObj)); // Keep this for existing visitor page logic
+          localStorage.setItem('visitor_user', JSON.stringify(userObj));
         }
-
-        localStorage.setItem('user', JSON.stringify(userObj)); // Standard session
         onLoginSuccess(userObj);
-
         setFormData({ email: '', role: 'visitor', password: '' });
         onClose();
       } else {
@@ -114,7 +106,7 @@ export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
             name="role"
             value={formData.role}
             onChange={handleChange}
-            className="w-full px-4 py-2 border border-blue-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 bg-blue-50"
+            className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
           >
             <option value="visitor">Visitor</option>
             <option value="guide">Guide</option>
@@ -135,15 +127,13 @@ export function LoginForm({ onLoginSuccess, onClose }: LoginFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {formData.role === 'visitor' ? 'Ticket ID (Visitor ID)' : 'Password'}
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
           <input
-            type={formData.role === 'visitor' ? 'number' : 'password'}
+            type="password"
             name="password"
             value={formData.password}
             onChange={handleChange}
-            placeholder={formData.role === 'visitor' ? 'e.g. 1042' : 'Your password'}
+            placeholder="Enter your password"
             className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
           />
         </div>
