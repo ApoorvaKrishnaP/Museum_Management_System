@@ -9,7 +9,7 @@ router = APIRouter(tags=["Tours"])
 
 # --- Pydantic Schema ---
 class TourCreate(BaseModel):
-    guide_email: str = Field(..., description="Email of the Guide")  # ADD THIS
+    guide_id: int = Field(..., description="ID of the Guide (Staff)")  # ✅ CHANGED to guide_id: int
     tour_date: date = Field(..., description="Date of the tour")
     tour_time: str = Field(..., description="Time of the tour (HH:MM)")
     visitor_group_name: str = Field(..., min_length=1, description="Name of the visitor group")
@@ -87,30 +87,51 @@ def get_tours_by_guide_email(email: str):
     finally:
         cur.close()
         conn.close()
-@router.get("/api/guides", status_code=200)
-def get_tour_guides():
-    """Fetch all staff members who are Tour Guides for the dropdown."""
+@router.get("/api/tours/guide-view", status_code=200)
+def get_guide_tours_with_visitors(email: str):
+    """
+    GUIDE DASHBOARD ENDPOINT - Fetch tours with full visitor details
+    
+    Query Flow:
+    1. Find staff by email + occupation = 'Tour_guide'
+    2. Find all tours for that guide_id
+    3. For each tour, fetch visitors from attends_tour + visitor table
+    4. Return tours with nested visitor details
+    """
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT staff_id, name FROM staff WHERE occupation = 'Tour_guide'")
-        guides = cur.fetchall()
-        # guides will be a list of RealDictRow or tuples depending on cursor factory.
-        # Assuming RealDictCursor (from previous files observation if any, or standard tuple)
-        # Let's assume RealDictCursor is used in get_conn or we handle it.
-        # If tuple: (id, name)
-        
-        # Safe way if we aren't sure of cursor factory:
-        result = []
-        for g in guides:
-             # If g is dict-like
-             if isinstance(g, dict):
-                 result.append({"staff_id": g['staff_id'], "name": g['name']})
-             else:
-                 # If tuple
-                 result.append({"staff_id": g[0], "name": g[1]})
-        
-        return result
+        query = """
+            SELECT 
+                t.tour_id,
+                t.guide_id,
+                t.tour_date,
+                t.tour_time,
+                t.visitor_group_name,
+                t.group_size,
+                t.language,
+                t.status,
+                json_agg(
+                    json_build_object(
+                        'visitor_id', v.visitor_id,
+                        'name', v.name,
+                        'nationality', v.nationality,
+                        'preferred_language', v.preferred_language,
+                        'contact', v.contact
+                    ) ORDER BY v.visitor_id
+                ) FILTER (WHERE v.visitor_id IS NOT NULL) as visitors
+            FROM tours t
+            LEFT JOIN attends_tour at ON t.tour_id = at.tour_id
+            LEFT JOIN visitor v ON at.visitor_id = v.visitor_id
+            JOIN staff s ON t.guide_id = s.staff_id
+            WHERE s.email = %s AND s.occupation = 'Tour_guide'
+            GROUP BY t.tour_id, t.guide_id, t.tour_date, t.tour_time, 
+                     t.visitor_group_name, t.group_size, t.language, t.status
+            ORDER BY t.tour_date DESC
+        """
+        cur.execute(query, (email,))
+        rows = cur.fetchall()
+        return rows
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -123,22 +144,22 @@ def create_tour(tour: TourCreate):
     cur = conn.cursor()
     
     try:
-        # STEP 1: Convert guide_email to guide_id
+        # STEP 1: Validate guide_id exists and is a tour guide
         cur.execute(
-            "SELECT staff_id FROM staff WHERE email = %s AND occupation = 'Tour_guide'",
-            (tour.guide_email,)
+            "SELECT staff_id FROM staff WHERE staff_id = %s AND occupation = 'Tour_guide'",
+            (tour.guide_id,)
         )
         staff_result = cur.fetchone()
         
         if not staff_result:
-            raise HTTPException(status_code=404, detail=f"No tour guide found with email: {tour.guide_email}")
+            raise HTTPException(status_code=404, detail=f"No tour guide found with ID: {tour.guide_id}")
         
-        guide_id = staff_result['staff_id']
+        guide_id = tour.guide_id
         
         # STEP 2: Generate random tour_id
         tour_id = random.randint(10000, 99999)
         
-        # STEP 3: Insert tour with guide_id (not guide_email)
+        # STEP 3: Insert into tours table
         cur.execute("""
             INSERT INTO tours (
                 tour_id, guide_id, tour_date, tour_time, visitor_group_name,
@@ -152,7 +173,7 @@ def create_tour(tour: TourCreate):
         
         new_tour_id = cur.fetchone()['tour_id']
         
-        # STEP 4: Insert visitor mappings
+        # STEP 4: Insert into attends_tour table (ONE row per visitor)
         for visitor_id in tour.visitor_ids:
             cur.execute("""
                 INSERT INTO attends_tour (visitor_id, tour_id)

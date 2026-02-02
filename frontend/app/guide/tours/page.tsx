@@ -4,112 +4,231 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// Mock Data for Scheduled Tours
-const MOCK_TOURS = [
-    { id: 1, date: '2023-10-27', time: '10:00 AM', visitor_group: 'School Group A', group_size: 25, language: 'English', status: 'Scheduled', visitor_id: 1024 },
-    { id: 2, date: '2023-10-27', time: '02:00 PM', visitor_group: 'Smith Family', group_size: 5, language: 'Spanish', status: 'Scheduled', visitor_id: 1056 },
-    { id: 3, date: '2023-10-28', time: '11:00 AM', visitor_group: 'City Tourists', group_size: 15, language: 'French', status: 'Pending', visitor_id: 1089 },
-    { id: 4, date: '2023-10-26', time: '09:00 AM', visitor_group: 'History Club', group_size: 10, language: 'English', status: 'Completed', visitor_id: 1011 },
-];
-
 export default function GuideToursPage() {
     const [tours, setTours] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [expandedTourId, setExpandedTourId] = useState<number | null>(null);
     const router = useRouter();
 
     useEffect(() => {
-    const fetchMyTours = async () => {
-        const savedUser = localStorage.getItem('user');
-        if (!savedUser) {
-            router.push('/');
-            return;
-        }
-        const user = JSON.parse(savedUser);
+        let isMounted = true;
+        const controller = new AbortController();
 
-        try {
-            // Directly fetch tours by guide email - single API call!
-            const toursRes = await fetch(`http://localhost:8000/api/tours/by-guide-email?email=${user.email}`);
-            
-            if (!toursRes.ok) {
-                throw new Error('Failed to fetch tours');
+        const fetchMyTours = async () => {
+            try {
+                // Check authentication
+                const savedUser = localStorage.getItem('user');
+                if (!savedUser) {
+                    if (isMounted) router.push('/');
+                    return;
+                }
+
+                const user = JSON.parse(savedUser);
+
+                // Validate user object
+                if (!user.email) {
+                    if (isMounted) {
+                        setError('User email not found. Please log in again.');
+                        setLoading(false);
+                    }
+                    return;
+                }
+
+                // Fetch tours
+                const toursRes = await fetch(
+                    `http://localhost:8000/api/tours/guide-view?email=${encodeURIComponent(user.email)}`,
+                    { signal: controller.signal }
+                );
+
+                if (!toursRes.ok) {
+                    throw new Error(`Server error: ${toursRes.status}`);
+                }
+
+                const toursData = await toursRes.json();
+
+                if (isMounted) {
+                    setTours(Array.isArray(toursData) ? toursData : []);
+                    setError(null);
+                }
+            } catch (err: any) {
+                if (err.name !== 'AbortError') {
+                    console.error('Error loading tours:', err);
+                    if (isMounted) {
+                        setError(err.message || 'Failed to load tours');
+                        setTours([]);
+                    }
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
-            
-            const toursData = await toursRes.json();
-            setTours(toursData);
-        } catch (error) {
-            console.error("Error loading tours:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+        };
 
-    fetchMyTours();
-}, []); // ✅ CHANGED: Empty dependency array
+        fetchMyTours();
 
-    if (loading) return <div className="min-h-screen bg-green-900 text-white flex items-center justify-center">Loading your schedule...</div>;
+        return () => {
+            isMounted = false;
+            controller.abort();
+        };
+    }, []); // Empty array - runs ONLY on mount
 
+    // Loading state
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-green-900 text-white flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-300 border-t-white mx-auto mb-6"></div>
+                    <p className="text-lg font-semibold">Loading your scheduled tours...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="min-h-screen bg-gradient-to-b from-green-900 to-green-800 text-white flex items-center justify-center">
+                <div className="text-center bg-red-500/20 border border-red-500 rounded-lg p-8 max-w-md">
+                    <p className="text-xl font-bold mb-4">❌ Error</p>
+                    <p className="text-red-200 mb-6">{error}</p>
+                    <Link href="/guide">
+                        <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-bold">
+                            Back to Dashboard
+                        </button>
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    // Main render
     return (
         <div className="min-h-screen bg-gradient-to-b from-green-900 to-green-800 text-white font-sans">
+            {/* Navigation */}
             <nav className="bg-green-950 shadow-lg sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-                    <h1 className="text-3xl font-bold">📅 Scheduled Tours</h1>
+                    <h1 className="text-3xl font-bold">📅 Your Scheduled Tours</h1>
                     <Link href="/guide">
                         <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 transition rounded font-bold text-sm">
-                            Back to Dashboard
+                            ← Back to Dashboard
                         </button>
                     </Link>
                 </div>
             </nav>
 
-            <main className="max-w-7xl mx-auto px-6 py-12">
-                <div className="bg-green-800/50 backdrop-blur-sm rounded-xl border border-green-700 p-8 shadow-2xl">
-                    <h2 className="text-2xl font-bold mb-6">Upcoming & Past Tours</h2>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="text-green-200 border-b border-green-600">
-                                    <th className="py-3 px-4">Date</th>
-                                    <th className="py-3 px-4">Time</th>
-                                    <th className="py-3 px-4">Group / Visitor</th>
-                                    <th className="py-3 px-4">Size</th>
-                                    <th className="py-3 px-4">Language</th>
-                                    <th className="py-3 px-4">Status</th>
-                                    <th className="py-3 px-4">Visitor IDs</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {tours.length === 0 ? (
-                                    <tr><td colSpan={7} className="text-center py-8 text-green-300">No scheduled tours found.</td></tr>
-                                ) : (
-                                    tours.map((tour) => (
-                                        <tr key={tour.tour_id} className="hover:bg-green-700/50 transition border-b border-green-700/50 last:border-0">
-                                            <td className="py-4 px-4">{tour.tour_date}</td>
-                                            <td className="py-4 px-4 font-mono text-yellow-300">{tour.tour_time}</td>
-                                            <td className="py-4 px-4 font-semibold">{tour.visitor_group_name}</td>
-                                            <td className="py-4 px-4">{tour.group_size}</td>
-                                            <td className="py-4 px-4">
-                                                <span className="px-2 py-1 bg-green-900 rounded text-xs border border-green-600">
-                                                    {tour.language}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-4">
-                                                <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider
-                        ${tour.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50' :
-                                                        tour.status === 'Completed' ? 'bg-green-500/20 text-green-300 border border-green-500/50' :
-                                                            'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'}`}>
-                                                    {tour.status}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-4 font-mono text-green-200">
-                                                {Array.isArray(tour.visitor_ids) ? tour.visitor_ids.join(', ') : tour.visitor_ids}
-                                            </td>
-                                        </tr>
-                                    )))}
-                            </tbody>
-                        </table>
+            {/* Main Content */}
+            <main className="max-w-6xl mx-auto px-6 py-12">
+                {tours.length === 0 ? (
+                    <div className="bg-green-800/50 backdrop-blur-sm rounded-xl border border-green-700 p-12 text-center shadow-2xl">
+                        <p className="text-xl text-green-200">No scheduled tours at the moment.</p>
                     </div>
-                </div>
+                ) : (
+                    <div className="space-y-6">
+                        {tours.map((tour) => (
+                            <div key={tour.tour_id} className="bg-green-800/40 backdrop-blur-sm rounded-xl border border-green-700 shadow-2xl overflow-hidden hover:shadow-xl transition">
+                                {/* Tour Header - Main Info */}
+                                <div className="p-6 bg-green-900/30 border-b border-green-700">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            <h2 className="text-2xl font-bold text-white mb-4">{tour.visitor_group_name}</h2>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                                <div>
+                                                    <p className="text-green-300 text-xs uppercase font-bold tracking-wide">📅 Date</p>
+                                                    <p className="text-white font-semibold text-lg">{tour.tour_date}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-green-300 text-xs uppercase font-bold tracking-wide">⏰ Time</p>
+                                                    <p className="text-yellow-300 font-mono font-bold text-lg">{tour.tour_time}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-green-300 text-xs uppercase font-bold tracking-wide">👥 Group Size</p>
+                                                    <p className="text-white font-semibold text-lg">{tour.group_size}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-green-300 text-xs uppercase font-bold tracking-wide">🗣️ Language</p>
+                                                    <p className="text-white font-semibold text-lg">{tour.language}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Status Badge */}
+                                        <div className="ml-4">
+                                            <span className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest inline-block
+                                                ${tour.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50' :
+                                                    tour.status === 'Completed' ? 'bg-green-500/20 text-green-300 border border-green-500/50' :
+                                                        'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'}`}>
+                                                {tour.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Expand/Collapse Button */}
+                                <div className="px-6 py-3 bg-green-800/20 border-t border-green-700">
+                                    <button
+                                        onClick={() => setExpandedTourId(expandedTourId === tour.tour_id ? null : tour.tour_id)}
+                                        className="w-full flex items-center justify-between text-green-300 hover:text-green-200 transition font-semibold text-lg"
+                                    >
+                                        <span>
+                                            👥 View Assigned Visitors ({tour.visitors?.length || 0})
+                                        </span>
+                                        <span className={`transform transition-transform duration-300 ${expandedTourId === tour.tour_id ? 'rotate-180' : ''}`}>
+                                            ▼
+                                        </span>
+                                    </button>
+                                </div>
+
+                                {/* Visitor Details Section - Expandable */}
+                                {expandedTourId === tour.tour_id && (
+                                    <div className="px-6 py-6 bg-green-900/20 border-t border-green-700">
+                                        {tour.visitors && tour.visitors.length > 0 ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {tour.visitors.map((visitor: any) => (
+                                                    <div 
+                                                        key={visitor.visitor_id} 
+                                                        className="bg-green-800/50 border border-green-600 rounded-lg p-4 hover:bg-green-800/70 transition transform hover:scale-105 duration-200"
+                                                    >
+                                                        <div className="flex items-start gap-3">
+                                                            {/* Avatar */}
+                                                            <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white shadow-lg">
+                                                                {visitor.name.charAt(0).toUpperCase()}
+                                                            </div>
+
+                                                            {/* Visitor Info */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <h3 className="text-white font-bold text-base mb-2">
+                                                                    #{visitor.visitor_id} - {visitor.name}
+                                                                </h3>
+                                                                <div className="space-y-1 text-sm">
+                                                                    <p className="text-green-200 flex items-center gap-2">
+                                                                        <span className="font-semibold">🌍</span>
+                                                                        <span>{visitor.nationality}</span>
+                                                                    </p>
+                                                                    <p className="text-green-200 flex items-center gap-2">
+                                                                        <span className="font-semibold">🗣️</span>
+                                                                        <span>{visitor.preferred_language}</span>
+                                                                    </p>
+                                                                    <p className="text-green-200 flex items-center gap-2 break-all">
+                                                                        <span className="font-semibold flex-shrink-0">📞</span>
+                                                                        <span className="font-mono">{visitor.contact}</span>
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-green-400 text-center py-6 text-lg">No visitors assigned to this tour yet.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </main>
         </div>
     );

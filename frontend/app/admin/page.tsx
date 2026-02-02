@@ -311,8 +311,8 @@ const searchStaff = () => {
   const [financeErrors, setFinanceErrors] = useState<{ [key: string]: string }>({});
 
   // Tours State
-  const [tourData, setTourData] = useState({
-  guide_email: '',  // CHANGED from guide_id
+const [tourData, setTourData] = useState({
+  guide_id: '',  // ✅ CHANGED to guide_id
   tour_date: '',
   tour_time: '',
   visitor_group_name: '',
@@ -615,24 +615,23 @@ const searchStaff = () => {
     if (tourErrors[name]) setTourErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  const validateTourForm = () => {
-    const newErrors: { [key: string]: string } = {};
-    if (!tourData.guide_email) newErrors.guide_email = "Please select a guide.";
-    if (!tourData.visitor_group_name.trim()) newErrors.visitor_group_name = "Group Name is required.";
-    if (!tourData.group_size || Number(tourData.group_size) <= 0) newErrors.group_size = "Valid group size required.";
-    if (!tourData.tour_date) newErrors.tour_date = "Date is required.";
-    if (!tourData.tour_time) newErrors.tour_time = "Time is required.";
-    if (!tourData.visitor_ids.trim()) {
-      newErrors.visitor_ids = "Enter at least one Visitor ID.";
-    } else {
-      // simple check if comma separated numbers
-      const ids = tourData.visitor_ids.split(',').map(s => s.trim());
-      if (ids.some(id => isNaN(Number(id)))) newErrors.visitor_ids = "IDs must be numbers separated by commas.";
-    }
+const validateTourForm = () => {
+  const newErrors: { [key: string]: string } = {};
+  if (!tourData.guide_id || isNaN(Number(tourData.guide_id))) newErrors.guide_id = "Please enter a valid guide ID.";  // ✅ CHANGED
+  if (!tourData.visitor_group_name.trim()) newErrors.visitor_group_name = "Group Name is required.";
+  if (!tourData.group_size || Number(tourData.group_size) <= 0) newErrors.group_size = "Valid group size required.";
+  if (!tourData.tour_date) newErrors.tour_date = "Date is required.";
+  if (!tourData.tour_time) newErrors.tour_time = "Time is required.";
+  if (!tourData.visitor_ids.trim()) {
+    newErrors.visitor_ids = "Enter at least one Visitor ID.";
+  } else {
+    const ids = tourData.visitor_ids.split(',').map(s => s.trim());
+    if (ids.some(id => isNaN(Number(id)))) newErrors.visitor_ids = "IDs must be numbers separated by commas.";
+  }
 
-    setTourErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  setTourErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
 
 
 
@@ -761,9 +760,13 @@ const searchStaff = () => {
 
     try {
       const payload = {
-  ...tourData,
-  guide_email: tourData.guide_email,  // Send email, not ID
+  guide_id: Number(tourData.guide_id),  // ✅ Convert to number
+  tour_date: tourData.tour_date,
+  tour_time: tourData.tour_time,
+  visitor_group_name: tourData.visitor_group_name,
   group_size: Number(tourData.group_size),
+  language: tourData.language,
+  status: tourData.status,
   visitor_ids: tourData.visitor_ids.split(',').map(s => Number(s.trim()))
 };
 
@@ -776,7 +779,7 @@ const searchStaff = () => {
       if (res.ok) {
         alert('Tour scheduled successfully!');
         setTourData({
-  guide_email: '', tour_date: '', tour_time: '', visitor_group_name: '',
+  guide_id: '', tour_date: '', tour_time: '', visitor_group_name: '',
   group_size: '', language: 'English', status: 'Scheduled', visitor_ids: ''
 });
       } else {
@@ -1246,22 +1249,17 @@ const searchStaff = () => {
                   </div>
 
                   <div>
-  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Tour Guide</label>
-  <select
-    name="guide_email"
-    value={tourData.guide_email}
+  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">Assign Guide (ID)</label>
+  <input
+    type="text"
+    name="guide_id"
+    value={tourData.guide_id}
     onChange={handleTourChange}
-    className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_email ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
+    placeholder="Enter Guide ID"
+    className={`w-full px-3 py-2 rounded bg-purple-800/50 border ${tourErrors.guide_id ? 'border-red-500' : 'border-purple-600'} focus:outline-none focus:ring-2 focus:ring-purple-400`}
     required
-  >
-    <option value="">-- Select Tour Guide --</option>
-    {guides.map(g => (
-      <option key={g.staff_id} value={g.email}>
-        {g.name} ({g.email})
-      </option>
-    ))}
-  </select>
-  {tourErrors.guide_email && <p className="text-red-400 text-xs mt-1">{tourErrors.guide_email}</p>}
+  />
+  {tourErrors.guide_id && <p className="text-red-400 text-xs mt-1">{tourErrors.guide_id}</p>}
 </div>
 
                   <div className="grid grid-cols-2 gap-3">
