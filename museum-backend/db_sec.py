@@ -197,7 +197,8 @@ def login_user(email, role, password):
         if not user:
             return {
                 'success': False,
-                'message': 'Invalid credentials. Email or role not found.',
+                'message': 'Email or role not found. Please register before login.',
+                'register_url': '/signup',
                 'user': None
             }
 
